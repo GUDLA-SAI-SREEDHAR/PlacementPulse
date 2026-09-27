@@ -219,10 +219,10 @@ const INITIAL_DATA = {
 // --- Source: api.js ---
 /**
  * PlacementPulse API Client Layer
- * Connects Frontend PortalContext & Store to backend REST API service (https://placementpulse-backend-one.vercel.app/api)
+ * Connects Frontend PortalContext & Store to backend REST API service (https://placement-pulse-chi.vercel.app/api)
  */
 
-const API_BASE_URL = 'https://placementpulse-backend-one.vercel.app/api';
+const API_BASE_URL = 'https://placement-pulse-chi.vercel.app/api';
 
 class ApiClient {
   constructor(baseUrl = API_BASE_URL) {
