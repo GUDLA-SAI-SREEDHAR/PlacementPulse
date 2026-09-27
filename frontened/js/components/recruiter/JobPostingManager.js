@@ -3,7 +3,7 @@ import htm from 'https://esm.sh/htm';
 
 const html = htm.bind(React.createElement);
 
-export function JobPostingManager({ myJobs, onPostJob }) {
+export function JobPostingManager({ myJobs = [], onPostJob }) {
   const [jobTitle, setJobTitle] = useState('');
   const [jobCtc, setJobCtc] = useState('');
   const [jobLocation, setJobLocation] = useState('');
@@ -12,24 +12,28 @@ export function JobPostingManager({ myJobs, onPostJob }) {
   const [jobSkills, setJobSkills] = useState('');
   const [jobDesc, setJobDesc] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onPostJob({
-      title: jobTitle,
-      ctc: jobCtc,
-      location: jobLocation,
-      minCgpa: parseFloat(jobMinCgpa),
-      lastDate: jobLastDate,
-      skillsRequired: jobSkills.split(',').map(s => s.trim()).filter(Boolean),
-      description: jobDesc,
-      eligibleBranches: ['Computer Science & Engineering', 'Information Technology']
-    });
-    alert('Job opening posted successfully!');
-    setJobTitle('');
-    setJobCtc('');
-    setJobLocation('');
-    setJobSkills('');
-    setJobDesc('');
+    try {
+      await onPostJob({
+        title: jobTitle,
+        ctc: jobCtc,
+        location: jobLocation,
+        minCgpa: parseFloat(jobMinCgpa) || 6.0,
+        lastDate: jobLastDate || '2026-12-31',
+        skillsRequired: jobSkills ? jobSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
+        description: jobDesc,
+        eligibleBranches: ['Computer Science & Engineering', 'Information Technology']
+      });
+      alert('Job opening posted successfully!');
+      setJobTitle('');
+      setJobCtc('');
+      setJobLocation('');
+      setJobSkills('');
+      setJobDesc('');
+    } catch (err) {
+      alert(err.message || 'Failed to post job.');
+    }
   };
 
   return html`
@@ -121,7 +125,7 @@ export function JobPostingManager({ myJobs, onPostJob }) {
       </div>
 
       <div className="jobs-grid">
-        ${myJobs.map(job => html`
+        ${myJobs.length === 0 ? html`<p className="text-muted">No jobs posted yet. Submit a new job posting above!</p>` : myJobs.map(job => html`
           <div key=${job.id} className="job-card">
             <div className="job-card-header">
               <div>

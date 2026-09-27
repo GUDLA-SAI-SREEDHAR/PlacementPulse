@@ -3,10 +3,14 @@ import htm from 'https://esm.sh/htm';
 
 const html = htm.bind(React.createElement);
 
-export function CandidatePipeline({ myApps, onUpdateStatus }) {
-  const handleStatusUpdate = (appId, status) => {
-    onUpdateStatus(appId, status);
-    alert(`Candidate status updated to: ${status}`);
+export function CandidatePipeline({ myApps = [], onUpdateStatus }) {
+  const handleStatusUpdate = async (appId, status) => {
+    try {
+      await onUpdateStatus(appId, status);
+      alert(`Candidate status updated to: ${status}`);
+    } catch (err) {
+      alert(err.message || 'Status update failed.');
+    }
   };
 
   return html`
@@ -34,7 +38,11 @@ export function CandidatePipeline({ myApps, onUpdateStatus }) {
                 </tr>
               </thead>
               <tbody>
-                ${myApps.map(a => html`
+                ${myApps.length === 0 ? html`
+                  <tr>
+                    <td colSpan="6" className="text-center text-muted">No student applications received yet.</td>
+                  </tr>
+                ` : myApps.map(a => html`
                   <tr key=${a.id}>
                     <td><strong>${a.studentName}</strong></td>
                     <td>${a.rollNo}</td>

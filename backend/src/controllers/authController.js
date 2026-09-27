@@ -3,7 +3,6 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const StudentProfile = require('../models/StudentProfile');
 const RecruiterProfile = require('../models/RecruiterProfile');
-const { isMongoConnected, inMemoryData } = require('../config/dataStore');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'placement_pulse_jwt_secret_key_2026';
 
@@ -21,27 +20,27 @@ exports.login = async (req, res, next) => {
       return res.status(400).json({ detail: 'Email and password are required' });
     }
 
-    let user = null;
+    const cleanEmail = email.toLowerCase().trim();
+    const normalizedRole = role ? role.toUpperCase().trim() : null;
+
+    let user = await User.findOne({ email: cleanEmail });
     let profile = null;
 
-    if (isMongoConnected()) {
-      user = await User.findOne({ email: email.toLowerCase() });
-      if (user) {
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch && password !== user.password) {
-          return res.status(401).json({ detail: 'Invalid email or password' });
-        }
+    if (user) {
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch && password !== user.password) {
+        return res.status(401).json({ detail: 'Invalid email or password' });
       }
-    }
-
-    if (!user) {
+    } else {
+      // Fallback check for demo credentials if not yet explicitly saved in DB
       const demoUser = Object.values(HARDCODED_CREDENTIALS).find(
-        (c) => c.email.toLowerCase() === email.toLowerCase() && c.password === password
+        (c) => c.email.toLowerCase() === cleanEmail && c.password === password
       );
 
       if (demoUser) {
         user = {
           _id: demoUser.id,
+          id: demoUser.id,
           email: demoUser.email,
           role: demoUser.role,
           name: demoUser.name,
@@ -51,31 +50,40 @@ exports.login = async (req, res, next) => {
       }
     }
 
+    const effectiveRole = user.role || normalizedRole || 'STUDENT';
+
     const token = jwt.sign(
-      { id: user._id, email: user.email, role: user.role || role },
+      { id: user._id || user.id, email: user.email, role: effectiveRole },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    if (isMongoConnected()) {
-      if ((user.role || role) === 'STUDENT') {
-        profile = await StudentProfile.findOne({ email: user.email });
-      } else if ((user.role || role) === 'RECRUITER') {
-        profile = await RecruiterProfile.findOne({ email: user.email });
+    if (effectiveRole === 'STUDENT') {
+      profile = await StudentProfile.findOne({ email: cleanEmail });
+      if (!profile) {
+        profile = (await StudentProfile.findOne({ studentId: 101 })) || (await StudentProfile.findOne());
       }
-    } else {
-      profile = (user.role || role) === 'STUDENT' ? inMemoryData.studentProfile : null;
+    } else if (effectiveRole === 'RECRUITER') {
+      profile = await RecruiterProfile.findOne({ email: cleanEmail });
+      if (!profile) {
+        profile = (await RecruiterProfile.findOne({ recruiterId: 501 })) || (await RecruiterProfile.findOne());
+      }
+    }
+
+    const profileObj = profile ? (profile.toObject ? profile.toObject() : { ...profile }) : null;
+    if (profileObj) {
+      profileObj.id = profileObj.studentId || profileObj.recruiterId || user.id || user._id;
     }
 
     res.json({
       token,
       user: {
-        id: user._id,
+        id: user._id || user.id,
         email: user.email,
-        role: user.role || role,
-        name: user.name || profile?.name || 'User',
+        role: effectiveRole,
+        name: user.name || profileObj?.name || 'User',
       },
-      profile,
+      profile: profileObj,
     });
   } catch (error) {
     next(error);
@@ -84,58 +92,64 @@ exports.login = async (req, res, next) => {
 
 exports.register = async (req, res, next) => {
   try {
-    const { email, password, role, name, rollNo, companyName, branch, phone } = req.body;
+    const { email, password, role, name, rollNo, companyName, branch, phone, cgpa } = req.body;
 
     if (!email || !password || !role) {
       return res.status(400).json({ detail: 'Email, password, and role are required' });
     }
 
-    let newUser = null;
+    const cleanEmail = email.toLowerCase().trim();
+    const normalizedRole = role.toUpperCase().trim();
+
+    if (!['STUDENT', 'RECRUITER', 'ADMIN'].includes(normalizedRole)) {
+      return res.status(400).json({ detail: 'Invalid role. Must be STUDENT, RECRUITER, or ADMIN' });
+    }
+
+    const existingUser = await User.findOne({ email: cleanEmail });
+    if (existingUser) {
+      return res.status(400).json({ detail: 'User with this email already exists' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await User.create({
+      email: cleanEmail,
+      password: hashedPassword,
+      role: normalizedRole,
+      name: name || '',
+      rollNo: rollNo || '',
+      companyName: companyName || '',
+    });
+
     let profile = null;
 
-    if (isMongoConnected()) {
-      const existingUser = await User.findOne({ email: email.toLowerCase() });
-      if (existingUser) {
-        return res.status(400).json({ detail: 'User with this email already exists' });
-      }
+    if (normalizedRole === 'STUDENT') {
+      const lastStudent = await StudentProfile.findOne().sort({ studentId: -1 });
+      const studentId = lastStudent && typeof lastStudent.studentId === 'number' ? Math.max(lastStudent.studentId + 1, 101) : 101;
+      const generatedRoll = rollNo || `2026CS${studentId}`;
 
-      const hashedPassword = await bcrypt.hash(password, 10);
-      newUser = await User.create({
-        email: email.toLowerCase(),
-        password: hashedPassword,
-        role,
-        name,
-        rollNo,
-        companyName,
+      profile = await StudentProfile.create({
+        studentId,
+        rollNo: generatedRoll,
+        name: name || 'Registered Student',
+        email: cleanEmail,
+        phone: phone || '',
+        branch: branch || 'Computer Science & Engineering',
+        cgpa: cgpa !== undefined ? Number(cgpa) : 8.5,
+        skills: ['JavaScript', 'HTML5', 'CSS3', 'Node.js', 'React'],
+        isVerified: false,
+        status: 'PENDING',
       });
+    } else if (normalizedRole === 'RECRUITER') {
+      const lastRecruiter = await RecruiterProfile.findOne().sort({ recruiterId: -1 });
+      const recruiterId = lastRecruiter && typeof lastRecruiter.recruiterId === 'number' ? Math.max(lastRecruiter.recruiterId + 1, 501) : 501;
 
-      if (role === 'STUDENT') {
-        const studentId = Math.floor(100 + Math.random() * 900);
-        profile = await StudentProfile.create({
-          studentId,
-          rollNo: rollNo || `2026CS${studentId}`,
-          name: name || 'Registered Student',
-          email: newUser.email,
-          phone: phone || '',
-          branch: branch || 'Computer Science & Engineering',
-          cgpa: 8.5,
-          skills: ['JavaScript', 'HTML5', 'CSS3', 'Node.js'],
-          isVerified: false,
-          status: 'PENDING',
-        });
-      } else if (role === 'RECRUITER') {
-        const recruiterId = Math.floor(500 + Math.random() * 500);
-        profile = await RecruiterProfile.create({
-          recruiterId,
-          companyName: companyName || 'New Enterprise',
-          contactPerson: name || 'Recruiter',
-          email: newUser.email,
-        });
-      }
-    } else {
-      const id = Date.now();
-      newUser = { _id: id, email, role, name };
-      inMemoryData.users.push(newUser);
+      profile = await RecruiterProfile.create({
+        recruiterId,
+        companyName: companyName || name || 'New Enterprise',
+        contactPerson: name || 'Recruiter',
+        email: cleanEmail,
+        mobile: phone || '',
+      });
     }
 
     const token = jwt.sign(
@@ -144,15 +158,20 @@ exports.register = async (req, res, next) => {
       { expiresIn: '7d' }
     );
 
+    const profileObj = profile ? (profile.toObject ? profile.toObject() : { ...profile }) : null;
+    if (profileObj) {
+      profileObj.id = profileObj.studentId || profileObj.recruiterId || newUser._id;
+    }
+
     res.status(201).json({
       token,
       user: {
         id: newUser._id,
         email: newUser.email,
         role: newUser.role,
-        name: newUser.name,
+        name: newUser.name || profileObj?.name,
       },
-      profile,
+      profile: profileObj,
     });
   } catch (error) {
     next(error);

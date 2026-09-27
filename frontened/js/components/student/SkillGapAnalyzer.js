@@ -6,8 +6,9 @@ const html = htm.bind(React.createElement);
 
 export function SkillGapAnalyzer() {
   const { state } = usePortal();
-  const student = state.studentProfile;
-  const roles = state.targetRoles;
+  const student = state.studentProfile || {};
+  const roles = state.targetRoles || [];
+  const studentSkills = Array.isArray(student.skills) ? student.skills : [];
 
   return html`
     <div className="tab-pane animate-fade-in">
@@ -18,8 +19,8 @@ export function SkillGapAnalyzer() {
 
       <div className="target-roles-grid">
         ${roles.map(role => {
-          const matched = role.requiredSkills.filter(s => student.skills.some(st => st.toLowerCase() === s.toLowerCase()));
-          const missing = role.requiredSkills.filter(s => !student.skills.some(st => st.toLowerCase() === s.toLowerCase()));
+          const matched = (role.requiredSkills || []).filter(s => studentSkills.some(st => st.toLowerCase() === s.toLowerCase()));
+          const missing = (role.requiredSkills || []).filter(s => !studentSkills.some(st => st.toLowerCase() === s.toLowerCase()));
           const matchPercent = Math.round((matched.length / role.requiredSkills.length) * 100);
 
           return html`

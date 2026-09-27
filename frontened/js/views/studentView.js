@@ -11,58 +11,96 @@ const html = htm.bind(React.createElement);
 
 export function StudentView() {
   const { state, updateStudentProfile, updateResumeContent, markAllNotificationsRead } = usePortal();
-  const student = state.studentProfile;
-  const jobs = state.jobs.filter(j => j.status === 'APPROVED');
-  const myApps = state.applications.filter(a => a.studentId === student.id);
-  const unreadNotifs = state.notifications.filter(n => !n.isRead);
+  
+  const student = state.studentProfile || {
+    name: 'Student',
+    email: '',
+    phone: '',
+    program: 'B.Tech',
+    branch: 'Computer Science & Engineering',
+    cgpa: 8.0,
+    passingYear: 2026,
+    skills: ['JavaScript', 'React', 'Python'],
+    isVerified: false,
+    resume: {
+      fileName: 'No Resume Uploaded',
+      uploadDate: 'N/A',
+      atsScore: 75,
+      content: ''
+    },
+    readinessBreakdown: {
+      overall: 75,
+      technical: 75,
+      aptitude: 70,
+      softSkills: 80,
+      resumeQuality: 75
+    }
+  };
+
+  const studentId = student.id || student.studentId || '101';
+  const jobs = (state.jobs || []).filter(j => j.status === 'APPROVED');
+  const myApps = (state.applications || []).filter(a => String(a.studentId) === String(studentId) || String(a.studentId) === String(student.id));
+  const unreadNotifs = (state.notifications || []).filter(n => !n.isRead);
 
   const [activeTab, setActiveTab] = useState('readiness');
 
   // Profile Edit State
   const [profileForm, setProfileForm] = useState({
-    name: student.name,
-    email: student.email,
-    phone: student.phone,
-    program: student.program,
-    branch: student.branch,
-    cgpa: student.cgpa,
-    passingYear: student.passingYear,
-    skills: student.skills.join(', ')
+    name: student.name || '',
+    email: student.email || '',
+    phone: student.phone || '',
+    program: student.program || 'B.Tech',
+    branch: student.branch || 'Computer Science & Engineering',
+    cgpa: student.cgpa != null ? student.cgpa : '8.00',
+    passingYear: student.passingYear || 2026,
+    skills: Array.isArray(student.skills) ? student.skills.join(', ') : ''
   });
 
   // Resume Text Editor State
-  const [resumeText, setResumeText] = useState(student.resume.content);
+  const [resumeText, setResumeText] = useState(student.resume?.content || '');
 
-  const handleProfileSubmit = (e) => {
+  const handleProfileSubmit = async (e) => {
     e.preventDefault();
-    updateStudentProfile({
-      name: profileForm.name,
-      email: profileForm.email,
-      phone: profileForm.phone,
-      program: profileForm.program,
-      branch: profileForm.branch,
-      cgpa: parseFloat(profileForm.cgpa),
-      passingYear: parseInt(profileForm.passingYear),
-      skills: profileForm.skills.split(',').map(s => s.trim()).filter(Boolean)
-    });
-    alert('Profile updated successfully!');
+    try {
+      await updateStudentProfile({
+        name: profileForm.name,
+        email: profileForm.email,
+        phone: profileForm.phone,
+        program: profileForm.program,
+        branch: profileForm.branch,
+        cgpa: parseFloat(profileForm.cgpa) || 0,
+        passingYear: parseInt(profileForm.passingYear) || 2026,
+        skills: profileForm.skills ? profileForm.skills.split(',').map(s => s.trim()).filter(Boolean) : []
+      });
+      alert('Profile updated successfully!');
+    } catch (err) {
+      alert(err.message || 'Failed to update profile.');
+    }
   };
 
-  const handleSaveResumeText = () => {
-    const score = updateResumeContent(resumeText, student.resume.fileName);
-    alert(`Resume text saved! Updated ATS Match Score: ${score}%`);
+  const handleSaveResumeText = async () => {
+    try {
+      const score = await updateResumeContent(resumeText, student.resume?.fileName || 'Updated_Resume.txt');
+      alert(`Resume text saved! Updated ATS Match Score: ${score}%`);
+    } catch (err) {
+      alert(err.message || 'Failed to save resume.');
+    }
   };
 
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files && e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (evt) => {
-        const text = evt.target.result;
-        setResumeText(text);
-        const score = updateResumeContent(text, file.name);
-        alert(`Uploaded ${file.name}! Calculated ATS Score: ${score}%`);
-        setActiveTab('ats');
+      reader.onload = async (evt) => {
+        try {
+          const text = evt.target.result;
+          setResumeText(text);
+          const score = await updateResumeContent(text, file.name);
+          alert(`Uploaded ${file.name}! Calculated ATS Score: ${score}%`);
+          setActiveTab('ats');
+        } catch (err) {
+          alert('Failed to parse uploaded resume.');
+        }
       };
       reader.readAsText(file);
     }
@@ -356,12 +394,12 @@ export function StudentView() {
       <aside className="portal-sidebar">
         <div className="student-mini-card">
           <div className="avatar-circle">
-            ${student.name.charAt(0)}${student.name.split(' ')[1] ? student.name.split(' ')[1].charAt(0) : ''}
+            ${((student.name || 'Student').split(' ').filter(Boolean).slice(0, 2).map(p => p.charAt(0)).join('') || 'ST').toUpperCase()}
           </div>
           <div className="mini-info">
-            <h4 className="student-name-text">${student.name}</h4>
-            <span className="roll-badge">${student.rollNo}</span>
-            <span className="cgpa-pill">CGPA: ${student.cgpa}</span>
+            <h4 className="student-name-text">${student.name || 'Student'}</h4>
+            <span className="roll-badge">${student.rollNo || '22BCS101'}</span>
+            <span className="cgpa-pill">CGPA: ${student.cgpa != null ? student.cgpa : 'N/A'}</span>
           </div>
         </div>
 
@@ -407,10 +445,10 @@ export function StudentView() {
         <div className="readiness-widget-mini">
           <div className="widget-header">
             <span>Readiness Score</span>
-            <span className="score-num">${student.readinessBreakdown.overall}/100</span>
+            <span className="score-num">${student.readinessBreakdown?.overall || 0}/100</span>
           </div>
           <div className="progress-bar-bg">
-            <div className="progress-bar-fill" style=${{ width: `${student.readinessBreakdown.overall}%` }}></div>
+            <div className="progress-bar-fill" style=${{ width: `${student.readinessBreakdown?.overall || 0}%` }}></div>
           </div>
         </div>
       </aside>

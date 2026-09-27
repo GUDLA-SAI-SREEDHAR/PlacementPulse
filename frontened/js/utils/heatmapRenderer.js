@@ -4,6 +4,7 @@
 
 export function renderResumeHeatmap(containerElement, heatmapLines) {
   if (!containerElement) return;
+  if (!Array.isArray(heatmapLines)) heatmapLines = [];
 
   containerElement.innerHTML = '';
 

@@ -3,7 +3,9 @@
  * Connects Frontend PortalContext & Store to backend REST API service (http://127.0.0.1:8000/api)
  */
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const API_BASE_URL = typeof window !== 'undefined' && window.location && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://127.0.0.1:8000/api'
+  : (typeof window !== 'undefined' && window.location && window.location.origin && !window.location.origin.startsWith('file:') ? `${window.location.origin}/api` : 'http://127.0.0.1:8000/api');
 
 class ApiClient {
   constructor(baseUrl = API_BASE_URL) {

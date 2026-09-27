@@ -3,7 +3,7 @@ import htm from 'https://esm.sh/htm';
 
 const html = htm.bind(React.createElement);
 
-export function CompanyProfile({ recruiter }) {
+export function CompanyProfile({ recruiter = {} }) {
   return html`
     <div className="tab-pane animate-fade-in">
       <div className="page-title-bar">
@@ -17,19 +17,19 @@ export function CompanyProfile({ recruiter }) {
           <div className="form-grid">
             <div className="form-group">
               <label>Company Name</label>
-              <input type="text" value=${recruiter.companyName} readOnly className="input-disabled" />
+              <input type="text" value=${recruiter.companyName || ''} readOnly className="input-disabled" />
             </div>
             <div className="form-group">
               <label>Industry Sector</label>
-              <input type="text" value=${recruiter.industry} readOnly className="input-disabled" />
+              <input type="text" value=${recruiter.industry || ''} readOnly className="input-disabled" />
             </div>
             <div className="form-group">
               <label>Contact Person</label>
-              <input type="text" value=${recruiter.contactPerson} readOnly className="input-disabled" />
+              <input type="text" value=${recruiter.contactPerson || ''} readOnly className="input-disabled" />
             </div>
             <div className="form-group">
               <label>Work Email</label>
-              <input type="text" value=${recruiter.email} readOnly className="input-disabled" />
+              <input type="text" value=${recruiter.email || ''} readOnly className="input-disabled" />
             </div>
           </div>
         </div>

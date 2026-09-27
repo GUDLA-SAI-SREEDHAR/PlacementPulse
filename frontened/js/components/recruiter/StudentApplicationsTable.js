@@ -3,7 +3,7 @@ import htm from 'https://esm.sh/htm';
 
 const html = htm.bind(React.createElement);
 
-export function StudentApplicationsTable({ myApps }) {
+export function StudentApplicationsTable({ myApps = [] }) {
   return html`
     <div className="tab-pane animate-fade-in">
       <div className="page-title-bar">
@@ -29,7 +29,11 @@ export function StudentApplicationsTable({ myApps }) {
                 </tr>
               </thead>
               <tbody>
-                ${myApps.map(a => html`
+                ${myApps.length === 0 ? html`
+                  <tr>
+                    <td colSpan="7" className="text-center text-muted">No student applications submitted yet.</td>
+                  </tr>
+                ` : myApps.map(a => html`
                   <tr key=${a.id}>
                     <td><strong>${a.studentName}</strong></td>
                     <td>${a.rollNo}</td>

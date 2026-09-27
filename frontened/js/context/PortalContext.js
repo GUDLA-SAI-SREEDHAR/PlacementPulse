@@ -160,13 +160,38 @@ export function PortalProvider({ children }) {
       const nextRecruiter = { ...prev.recruiterProfile };
 
       if (role === 'STUDENT') {
+        nextStudent.id = 'STU-' + Date.now().toString().slice(-4);
+        nextStudent.rollNo = '22BCS' + Math.floor(100 + Math.random() * 900);
         nextStudent.name = name;
         nextStudent.email = email;
         if (branch) nextStudent.branch = branch;
         if (cgpa) nextStudent.cgpa = parseFloat(cgpa);
+        if (!nextStudent.skills || nextStudent.skills.length === 0) {
+          nextStudent.skills = ['JavaScript', 'React', 'Python', 'Data Structures', 'SQL'];
+        }
+        if (!nextStudent.resume || !nextStudent.resume.content) {
+          nextStudent.resume = {
+            fileName: 'Resume_Draft.txt',
+            uploadDate: new Date().toISOString().split('T')[0],
+            atsScore: 78,
+            content: 'Experienced student with skills in JavaScript, React, Python, Data Structures, and SQL.'
+          };
+        }
+        if (!nextStudent.readinessBreakdown || nextStudent.readinessBreakdown.overall === 0) {
+          nextStudent.readinessBreakdown = {
+            overall: 78,
+            technical: 80,
+            aptitude: 75,
+            softSkills: 80,
+            resumeQuality: 78
+          };
+        }
       } else if (role === 'RECRUITER') {
+        nextRecruiter.id = 'REC-' + Date.now().toString().slice(-4);
         nextRecruiter.companyName = name;
         nextRecruiter.email = email;
+        nextRecruiter.industry = 'Technology & Software';
+        nextRecruiter.contactPerson = name + ' HR Team';
       }
 
       return {
@@ -252,8 +277,9 @@ export function PortalProvider({ children }) {
     const job = state.jobs.find(j => j.id === jobId);
     if (!job) return false;
 
+    const currentStudentId = state.studentProfile?.id || state.studentProfile?.studentId || '101';
     const existing = state.applications.find(
-      a => a.studentId === state.studentProfile.id && a.jobId === jobId
+      a => (String(a.studentId) === String(currentStudentId) || String(a.studentId) === String(state.studentProfile?.id)) && a.jobId === jobId
     );
     if (existing) return false;
 
@@ -265,12 +291,12 @@ export function PortalProvider({ children }) {
 
     const newApp = {
       id: `APP-${Date.now().toString().slice(-4)}`,
-      studentId: state.studentProfile.id,
-      studentName: state.studentProfile.name,
-      rollNo: state.studentProfile.rollNo,
-      branch: state.studentProfile.branch,
-      cgpa: state.studentProfile.cgpa,
-      atsScore: state.studentProfile.resume.atsScore || 84,
+      studentId: currentStudentId,
+      studentName: state.studentProfile?.name || 'Student',
+      rollNo: state.studentProfile?.rollNo || '22BCS101',
+      branch: state.studentProfile?.branch || 'Computer Science',
+      cgpa: state.studentProfile?.cgpa || 8.0,
+      atsScore: state.studentProfile?.resume?.atsScore || 84,
       jobId: job.id,
       jobTitle: job.title,
       companyName: job.companyName,
@@ -345,10 +371,13 @@ export function PortalProvider({ children }) {
       console.warn('[PostJob] Backend job posting warning:', err.message);
     }
 
+    const recruiterId = state.recruiterProfile?.id || 'REC-01';
+    const companyName = state.recruiterProfile?.companyName || 'Recruiter Corp';
+
     const newJob = {
       id: `JOB-${new Date().getFullYear()}-${(state.jobs.length + 1).toString().padStart(2, '0')}`,
-      recruiterId: state.recruiterProfile.id,
-      companyName: state.recruiterProfile.companyName,
+      recruiterId,
+      companyName,
       ...jobData,
       status: 'PENDING',
       postedDate: new Date().toISOString().split('T')[0]
@@ -357,7 +386,7 @@ export function PortalProvider({ children }) {
     const newNotif = {
       id: `NOTIF-${Date.now()}`,
       title: 'New Job Pending Approval',
-      message: `Recruiter ${state.recruiterProfile.companyName} submitted a job: ${jobData.title}`,
+      message: `Recruiter ${companyName} submitted a job: ${jobData.title}`,
       type: 'JOB',
       date: new Date().toISOString().replace('T', ' ').slice(0, 16),
       isRead: false
@@ -429,6 +458,23 @@ export function PortalProvider({ children }) {
     }));
   };
 
+  const broadcastNotification = (title, message, type = 'ANNOUNCEMENT') => {
+    const newNotif = {
+      id: `NOTIF-${Date.now()}`,
+      title,
+      message,
+      type,
+      date: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      isRead: false
+    };
+
+    setState(prev => ({
+      ...prev,
+      notifications: [newNotif, ...prev.notifications]
+    }));
+    return true;
+  };
+
   const resetDemoData = () => {
     localStorage.removeItem(STORAGE_KEY);
     setState(JSON.parse(JSON.stringify(INITIAL_DATA)));
@@ -450,6 +496,7 @@ export function PortalProvider({ children }) {
     verifyStudent,
     addInterviewExperience,
     markAllNotificationsRead,
+    broadcastNotification,
     resetDemoData
   };
 

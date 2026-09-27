@@ -23,15 +23,39 @@ connectDB();
 
 // Middleware
 app.use(cors({ origin: '*' }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(authMiddleware);
 
-// Health Check Endpoint
-app.get('/api/health', (req, res) => {
+// Health Check Endpoints
+const healthPayload = () => ({
+  status: 'ok',
+  service: 'PlacementPulse REST API Backend',
+  timestamp: new Date().toISOString(),
+  uptime: process.uptime(),
+});
+
+app.get('/api/health', (req, res) => res.json(healthPayload()));
+app.get('/health', (req, res) => res.json(healthPayload()));
+
+// API Root info
+app.get('/', (req, res) => {
   res.json({
-    status: 'ok',
-    service: 'PlacementPulse REST API Backend',
-    timestamp: new Date().toISOString(),
+    name: 'PlacementPulse REST API Backend',
+    status: 'running',
+    version: '1.0.0',
+    documentation: 'Virtual Placement Cell Portal API',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth',
+      students: '/api/students',
+      jobs: '/api/jobs',
+      applications: '/api/applications',
+      ats: '/api/ats',
+      experiences: '/api/experiences',
+      notifications: '/api/notifications',
+      analytics: '/api/analytics',
+    },
   });
 });
 
@@ -47,15 +71,19 @@ app.use('/api/analytics', analyticsRoutes);
 
 // 404 Handler
 app.use((req, res) => {
-  res.status(404).json({ detail: `Route ${req.originalUrl} not found` });
+  res.status(404).json({ detail: `Route ${req.originalUrl} not found`, status: 404 });
 });
 
 // Global Error Handling Middleware
 app.use(errorHandler);
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`====================================================`);
-  console.log(`🚀 PlacementPulse REST API Server Started!`);
-  console.log(`🌐 API Base URL: http://127.0.0.1:${PORT}/api`);
-  console.log(`====================================================`);
-});
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`====================================================`);
+    console.log(`🚀 PlacementPulse REST API Server Started!`);
+    console.log(`🌐 API Base URL: http://127.0.0.1:${PORT}/api`);
+    console.log(`====================================================`);
+  });
+}
+
+module.exports = app;

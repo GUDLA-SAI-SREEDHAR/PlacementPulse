@@ -5,6 +5,7 @@
 export function renderBranchBarChart(containerId, branchData) {
   const container = document.getElementById(containerId);
   if (!container) return;
+  if (!Array.isArray(branchData)) branchData = [];
 
   const maxRate = 100;
   
@@ -38,6 +39,7 @@ export function renderBranchBarChart(containerId, branchData) {
 export function renderSalaryDonutChart(containerId, salaryData) {
   const container = document.getElementById(containerId);
   if (!container) return;
+  if (!Array.isArray(salaryData)) salaryData = [];
 
   // Render visual donut segments and legend
   const totalCount = salaryData.reduce((acc, curr) => acc + curr.count, 0);

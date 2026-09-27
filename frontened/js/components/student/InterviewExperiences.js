@@ -6,22 +6,26 @@ const html = htm.bind(React.createElement);
 
 export function InterviewExperiences() {
   const { state, addInterviewExperience } = usePortal();
-  const experiences = state.interviewExperiences;
+  const experiences = state.interviewExperiences || [];
 
-  const handleShare = () => {
+  const handleShare = async () => {
     const company = prompt('Company Name:');
     const role = prompt('Role Title:');
     const tips = prompt('Key Interview Tips & Preparation Guidance:');
 
     if (company && role) {
-      addInterviewExperience({
-        company,
-        role,
-        author: state.studentProfile.name,
-        difficulty: 'Medium',
-        tips: tips || 'Focus on core technical fundamentals and system design basics.'
-      });
-      alert('Your interview experience has been published!');
+      try {
+        await addInterviewExperience({
+          company,
+          role,
+          author: state.studentProfile?.name || 'Student',
+          difficulty: 'Medium',
+          tips: tips || 'Focus on core technical fundamentals and system design basics.'
+        });
+        alert('Your interview experience has been published!');
+      } catch (err) {
+        alert(err.message || 'Failed to submit interview experience.');
+      }
     }
   };
 
@@ -33,7 +37,7 @@ export function InterviewExperiences() {
       </div>
 
       <div className="experiences-list">
-        ${experiences.map(exp => html`
+        ${experiences.length === 0 ? html`<p className="text-muted">No interview experiences shared yet. Be the first to contribute!</p>` : experiences.map(exp => html`
           <div key=${exp.id} className="card experience-card mb-3">
             <div className="card-header">
               <h3>${exp.company} - ${exp.role}</h3>

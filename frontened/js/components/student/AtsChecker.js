@@ -8,16 +8,17 @@ const html = htm.bind(React.createElement);
 
 export function AtsChecker({ isHeatmapOnly = false }) {
   const { state } = usePortal();
-  const student = state.studentProfile;
+  const student = state.studentProfile || {};
   const heatmapContainerRef = useRef(null);
 
-  const analysis = analyzeResume(student.resume.content, 'software');
+  const resumeContent = student.resume?.content || '';
+  const analysis = analyzeResume(resumeContent, 'software');
 
   useEffect(() => {
     if (heatmapContainerRef.current) {
-      renderResumeHeatmap(heatmapContainerRef.current, analysis.heatmapLines);
+      renderResumeHeatmap(heatmapContainerRef.current, analysis.heatmapLines || []);
     }
-  }, [student.resume.content]);
+  }, [student.resume?.content]);
 
   if (isHeatmapOnly) {
     return html`

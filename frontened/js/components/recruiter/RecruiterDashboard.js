@@ -3,14 +3,14 @@ import htm from 'https://esm.sh/htm';
 
 const html = htm.bind(React.createElement);
 
-export function RecruiterDashboard({ recruiter, myJobs, myApps, shortlisted }) {
+export function RecruiterDashboard({ recruiter = {}, myJobs = [], myApps = [], shortlisted = [] }) {
   const selectedCount = myApps.filter(a => a.status === 'SELECTED').length;
 
   return html`
     <div className="tab-pane animate-fade-in">
       <div className="welcome-hero-card recruiter">
         <div className="hero-text">
-          <h2>Recruiter Console: ${recruiter.companyName}</h2>
+          <h2>Recruiter Console: ${recruiter.companyName || 'Recruiter Portal'}</h2>
           <p>Manage campus recruitment drives, candidate applications, and interview scheduling.</p>
         </div>
       </div>

@@ -86,14 +86,14 @@ export function Header() {
 
         <div className="user-profile-pill">
           <div className="user-avatar">
-            ${currentRole === 'STUDENT' ? 'AJ' : currentRole === 'RECRUITER' ? 'NA' : 'PO'}
+            ${currentRole === 'STUDENT' ? ((state.studentProfile?.name || 'S').slice(0, 2).toUpperCase()) : currentRole === 'RECRUITER' ? ((state.recruiterProfile?.companyName || 'R').slice(0, 2).toUpperCase()) : 'PO'}
           </div>
           <div className="user-meta">
             <span className="user-name">
-              ${currentRole === 'STUDENT' ? state.studentProfile.name : currentRole === 'RECRUITER' ? state.recruiterProfile.companyName : 'Dr. M. Sharma'}
+              ${currentRole === 'STUDENT' ? (state.studentProfile?.name || 'Student') : currentRole === 'RECRUITER' ? (state.recruiterProfile?.companyName || 'Recruiter') : 'Dr. M. Sharma'}
             </span>
-            <span className=${`user-role-badge ${currentRole.toLowerCase()}`}>
-              ${currentRole.replace('_', ' ')}
+            <span className=${`user-role-badge ${(currentRole || 'STUDENT').toLowerCase()}`}>
+              ${(currentRole || 'STUDENT').replace('_', ' ')}
             </span>
           </div>
         </div>

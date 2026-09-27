@@ -32,4 +32,24 @@ const studentProfileSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+studentProfileSchema.virtual('id').get(function () {
+  return this.studentId;
+});
+
+studentProfileSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc, ret) => {
+    ret.id = ret.studentId;
+    return ret;
+  },
+});
+
+studentProfileSchema.set('toObject', {
+  virtuals: true,
+  transform: (doc, ret) => {
+    ret.id = ret.studentId;
+    return ret;
+  },
+});
+
 module.exports = mongoose.model('StudentProfile', studentProfileSchema);

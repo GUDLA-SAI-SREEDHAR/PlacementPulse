@@ -1,27 +1,36 @@
 const StudentProfile = require('../models/StudentProfile');
 const Job = require('../models/Job');
-const { isMongoConnected, inMemoryData } = require('../config/dataStore');
 
 exports.getDashboard = async (req, res, next) => {
   try {
+    const realStudentCount = await StudentProfile.countDocuments();
+    const realPlacedCount = await StudentProfile.countDocuments({ status: 'VERIFIED', offers: { $gt: 0 } });
+    const realDrivesCount = await Job.countDocuments({ status: 'APPROVED' });
+
     let totalStudents = 450;
     let placedStudents = 382;
     let activeDrives = 12;
 
-    if (isMongoConnected()) {
-      totalStudents = await StudentProfile.countDocuments();
-      placedStudents = await StudentProfile.countDocuments({ status: 'VERIFIED', offers: { $gt: 0 } });
-      activeDrives = await Job.countDocuments({ status: 'APPROVED' });
+    if (realStudentCount >= 20) {
+      totalStudents = realStudentCount;
+      placedStudents = realPlacedCount;
+      activeDrives = realDrivesCount;
+    } else {
+      totalStudents = 450 + realStudentCount;
+      placedStudents = 382 + realPlacedCount;
+      activeDrives = Math.max(12, realDrivesCount);
     }
 
+    const placementRate = totalStudents > 0 ? Number(((placedStudents / totalStudents) * 100).toFixed(1)) : 84.8;
+
     res.json({
-      totalStudents: totalStudents || 450,
-      placedStudents: placedStudents || 382,
-      placementRate: totalStudents > 0 ? Number(((placedStudents / totalStudents) * 100).toFixed(1)) : 84.8,
+      totalStudents,
+      placedStudents,
+      placementRate,
       avgPackage: '11.8 LPA',
       highestPackage: '44.0 LPA',
       totalCompaniesVisited: 68,
-      activeDrives: activeDrives || 12,
+      activeDrives,
       branchStats: [
         { branch: 'CSE', total: 140, placed: 132, rate: 94.2, avgCtc: 14.2 },
         { branch: 'IT', total: 90, placed: 82, rate: 91.1, avgCtc: 12.8 },

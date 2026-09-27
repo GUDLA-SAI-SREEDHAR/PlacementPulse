@@ -15,6 +15,7 @@ export function analyzeResume(resumeText, targetRoleCategory = 'software') {
       matchedKeywords: [],
       missingKeywords: [],
       sectionScores: { contact: 0, summary: 0, education: 0, skills: 0, experience: 0, projects: 0 },
+      heatmapLines: [],
       heatmapData: []
     };
   }

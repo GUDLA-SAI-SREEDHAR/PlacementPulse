@@ -5,8 +5,8 @@ import { PortalProvider, usePortal } from './context/PortalContext.js';
 import { Header } from './components/Header.js';
 import { Footer } from './components/Footer.js';
 import { LoginView } from './views/loginView.js';
-import { StudentView } from './views/StudentView.js';
-import { RecruiterView } from './views/RecruiterView.js';
+import { StudentView } from './views/studentView.js';
+import { RecruiterView } from './views/recruiterView.js';
 import { AdminView } from './views/adminView.js';
 
 const html = htm.bind(React.createElement);

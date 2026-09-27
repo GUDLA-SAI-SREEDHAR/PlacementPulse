@@ -27,17 +27,21 @@ export function LoginView() {
     setErrorMessage('');
   };
 
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
-    const res = login(email, password, selectedRole);
-    if (!res.success) {
-      setErrorMessage(res.message);
+    try {
+      const res = await login(email, password, selectedRole);
+      if (res && !res.success) {
+        setErrorMessage(res.message || 'Login failed. Please check your credentials.');
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Login request encountered an error.');
     }
   };
 
-  const handleRegisterSubmit = (e) => {
+  const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
@@ -49,9 +53,15 @@ export function LoginView() {
       branch: regBranch,
       cgpa: regCgpa
     };
-    const res = register(userData);
-    if (!res.success) {
-      setErrorMessage(res.message);
+    try {
+      const res = await register(userData);
+      if (res && !res.success) {
+        setErrorMessage(res.message || 'Registration failed.');
+      } else {
+        setSuccessMessage('Registration successful! Redirecting to your dashboard...');
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Registration request encountered an error.');
     }
   };
 
@@ -118,7 +128,7 @@ export function LoginView() {
                   id="login-email" 
                   value=${email}
                   onChange=${(e) => setEmail(e.target.value)}
-                  placeholder=${validCreds[selectedRole] ? validCreds[selectedRole].email : 'user@university.edu'} 
+                  placeholder=${selectedRole === 'STUDENT' ? 'student@university.edu' : selectedRole === 'RECRUITER' ? 'recruiter@company.com' : 'officer@university.edu'} 
                   required 
                 />
               </div>

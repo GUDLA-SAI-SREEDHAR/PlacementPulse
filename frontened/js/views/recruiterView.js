@@ -13,9 +13,14 @@ const html = htm.bind(React.createElement);
 
 export function RecruiterView() {
   const { state, postNewJob, updateApplicationStatus } = usePortal();
-  const recruiter = state.recruiterProfile;
-  const myJobs = state.jobs.filter(j => j.recruiterId === recruiter.id || j.companyName === recruiter.companyName);
-  const myApps = state.applications.filter(a => a.companyName === recruiter.companyName);
+  const recruiter = state.recruiterProfile || {
+    id: 'REC-01',
+    companyName: 'Acme Innovations',
+    industry: 'Technology',
+    contactPerson: 'Recruiter HR'
+  };
+  const myJobs = (state.jobs || []).filter(j => j.recruiterId === recruiter.id || j.companyName === recruiter.companyName);
+  const myApps = (state.applications || []).filter(a => a.companyName === recruiter.companyName);
   const shortlisted = myApps.filter(a => a.status === 'SHORTLISTED' || a.status === 'INTERVIEW_SCHEDULED');
 
   const [activeTab, setActiveTab] = useState('dashboard');

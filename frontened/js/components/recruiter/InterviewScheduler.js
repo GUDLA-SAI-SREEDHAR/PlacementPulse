@@ -3,26 +3,35 @@ import htm from 'https://esm.sh/htm';
 
 const html = htm.bind(React.createElement);
 
-export function InterviewScheduler({ myApps, onUpdateStatus }) {
+export function InterviewScheduler({ myApps = [], onUpdateStatus }) {
   const [schedAppId, setSchedAppId] = useState(myApps[0]?.id || '');
   const [schedDate, setSchedDate] = useState('');
   const [schedTime, setSchedTime] = useState('');
   const [schedMode, setSchedMode] = useState('Virtual (Google Meet)');
   const [schedLink, setSchedLink] = useState('');
 
-  const handleScheduleSubmit = (e) => {
+  const currentAppId = schedAppId || (myApps[0]?.id || '');
+
+  const handleScheduleSubmit = async (e) => {
     e.preventDefault();
-    if (!schedAppId) return;
-    onUpdateStatus(schedAppId, 'INTERVIEW_SCHEDULED', {
-      date: schedDate,
-      time: schedTime,
-      mode: schedMode,
-      link: schedLink
-    });
-    alert('Interview scheduled successfully!');
-    setSchedDate('');
-    setSchedTime('');
-    setSchedLink('');
+    if (!currentAppId) {
+      alert('Please select a candidate to schedule an interview.');
+      return;
+    }
+    try {
+      await onUpdateStatus(currentAppId, 'INTERVIEW_SCHEDULED', {
+        date: schedDate,
+        time: schedTime,
+        mode: schedMode,
+        link: schedLink
+      });
+      alert('Interview scheduled successfully!');
+      setSchedDate('');
+      setSchedTime('');
+      setSchedLink('');
+    } catch (err) {
+      alert(err.message || 'Failed to schedule interview.');
+    }
   };
 
   const scheduledApps = myApps.filter(a => a.interviewDetails);
@@ -42,8 +51,8 @@ export function InterviewScheduler({ myApps, onUpdateStatus }) {
             <form onSubmit=${handleScheduleSubmit}>
               <div className="form-group">
                 <label>Candidate:</label>
-                <select value=${schedAppId} onChange=${e => setSchedAppId(e.target.value)} required>
-                  ${myApps.map(a => html`<option key=${a.id} value=${a.id}>${a.studentName} (${a.rollNo})</option>`)}
+                <select value=${currentAppId} onChange=${e => setSchedAppId(e.target.value)} required>
+                  ${myApps.length === 0 ? html`<option value="">No candidates available</option>` : myApps.map(a => html`<option key=${a.id} value=${a.id}>${a.studentName} (${a.rollNo})</option>`)}
                 </select>
               </div>
               <div className="form-group">

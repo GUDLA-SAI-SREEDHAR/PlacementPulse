@@ -1,14 +1,24 @@
 import React, { useState } from 'https://esm.sh/react@18';
 import htm from 'https://esm.sh/htm';
+import { usePortal } from '../../context/PortalContext.js';
 
 const html = htm.bind(React.createElement);
 
 export function CandidateCommunication() {
+  const { broadcastNotification, state } = usePortal();
   const [msgSubject, setMsgSubject] = useState('');
   const [msgContent, setMsgContent] = useState('');
 
   const handleSendMessage = (e) => {
     e.preventDefault();
+    if (!msgSubject.trim() || !msgContent.trim()) {
+      alert('Please fill in both subject and message content.');
+      return;
+    }
+    const company = state.recruiterProfile?.companyName || 'Recruiter';
+    if (broadcastNotification) {
+      broadcastNotification(`[${company}] ${msgSubject}`, msgContent, 'ANNOUNCEMENT');
+    }
     alert('Announcement message sent to candidate notifications!');
     setMsgSubject('');
     setMsgContent('');

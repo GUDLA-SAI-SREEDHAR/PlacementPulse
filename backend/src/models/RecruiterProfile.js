@@ -16,4 +16,24 @@ const recruiterProfileSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+recruiterProfileSchema.virtual('id').get(function () {
+  return this.recruiterId;
+});
+
+recruiterProfileSchema.set('toJSON', {
+  virtuals: true,
+  transform: (doc, ret) => {
+    ret.id = ret.recruiterId;
+    return ret;
+  },
+});
+
+recruiterProfileSchema.set('toObject', {
+  virtuals: true,
+  transform: (doc, ret) => {
+    ret.id = ret.recruiterId;
+    return ret;
+  },
+});
+
 module.exports = mongoose.model('RecruiterProfile', recruiterProfileSchema);

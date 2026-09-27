@@ -2,24 +2,22 @@ const Application = require('../models/Application');
 const Job = require('../models/Job');
 const StudentProfile = require('../models/StudentProfile');
 const Notification = require('../models/Notification');
-const { isMongoConnected, inMemoryData } = require('../config/dataStore');
 
 exports.listApplications = async (req, res, next) => {
   try {
-    const { student_id, job_id } = req.query;
+    const student_id = req.query.student_id || req.query.studentId;
+    const job_id = req.query.job_id || req.query.jobId;
 
-    if (isMongoConnected()) {
-      const filter = {};
-      if (student_id) filter.studentId = Number(student_id);
-      if (job_id) filter.jobId = job_id;
-      const apps = await Application.find(filter).sort({ createdAt: -1 });
-      return res.json(apps);
+    const filter = {};
+    if (student_id) {
+      const numId = Number(student_id);
+      filter.studentId = !isNaN(numId) ? numId : student_id;
+    }
+    if (job_id) {
+      filter.jobId = job_id;
     }
 
-    let apps = [...inMemoryData.applications];
-    if (student_id) apps = apps.filter((a) => a.studentId === Number(student_id));
-    if (job_id) apps = apps.filter((a) => a.jobId === job_id);
-
+    const apps = await Application.find(filter).sort({ createdAt: -1 });
     res.json(apps);
   } catch (error) {
     next(error);
@@ -34,36 +32,54 @@ exports.applyForJob = async (req, res, next) => {
     }
 
     let student = null;
-    let job = null;
 
-    if (isMongoConnected()) {
-      student = await StudentProfile.findOne({ studentId: 101 });
-      job = await Job.findOne({ id: jobId });
-    } else {
-      student = inMemoryData.studentProfile;
-      job = inMemoryData.jobs.find((j) => j.id === jobId);
+    // 1. Resolve student by authenticated user or parameter
+    if (req.user?.email) {
+      student = await StudentProfile.findOne({ email: req.user.email.toLowerCase().trim() });
+    }
+    if (!student && req.body.studentId) {
+      const num = Number(req.body.studentId);
+      student = await StudentProfile.findOne({ studentId: isNaN(num) ? req.body.studentId : num });
+    }
+    if (!student) {
+      student = (await StudentProfile.findOne({ studentId: 101 })) || (await StudentProfile.findOne());
+    }
+
+    // 2. Resolve job
+    let job = await Job.findOne({ id: jobId });
+    if (!job && jobId.match(/^[0-9a-fA-F]{24}$/)) {
+      job = await Job.findById(jobId);
     }
 
     if (!job) {
       return res.status(404).json({ detail: 'Job not found' });
     }
 
-    const existingApp = isMongoConnected()
-      ? await Application.findOne({ studentId: student.studentId, jobId: job.id })
-      : inMemoryData.applications.find((a) => a.studentId === student.studentId && a.jobId === job.id);
+    if (!student) {
+      return res.status(400).json({ detail: 'Student profile not found. Please register or create your student profile first.' });
+    }
 
+    const currentStudentId = student.studentId || student.id || 101;
+
+    // Check if already applied
+    const existingApp = await Application.findOne({ studentId: currentStudentId, jobId: job.id });
     if (existingApp) {
       return res.status(400).json({ detail: 'Already applied for this job opportunity' });
     }
 
-    const newAppId = `APP-${1000 + inMemoryData.applications.length + 1}`;
+    // Generate safe unique Application ID
+    const appCount = await Application.countDocuments();
+    const candidateId = `APP-${1000 + appCount + 1}`;
+    const duplicate = await Application.findOne({ id: candidateId });
+    const newAppId = duplicate ? `APP-${Date.now().toString().slice(-4)}` : candidateId;
+
     const newApp = {
       id: newAppId,
-      studentId: student.studentId,
-      studentName: student.name,
-      rollNo: student.rollNo,
-      branch: student.branch,
-      cgpa: student.cgpa,
+      studentId: currentStudentId,
+      studentName: student.name || 'Student Candidate',
+      rollNo: student.rollNo || `2026CS${currentStudentId}`,
+      branch: student.branch || 'Computer Science & Engineering',
+      cgpa: student.cgpa || 8.5,
       atsScore: student.resume?.atsScore || 85,
       jobId: job.id,
       jobTitle: job.title,
@@ -72,13 +88,28 @@ exports.applyForJob = async (req, res, next) => {
       status: 'APPLIED',
     };
 
-    if (isMongoConnected()) {
-      await Application.create(newApp);
-    } else {
-      inMemoryData.applications.unshift(newApp);
+    await Application.create(newApp);
+
+    // Create notification for student
+    try {
+      await Notification.create({
+        id: `NOTIF-${Date.now()}`,
+        studentId: currentStudentId,
+        title: 'Application Submitted',
+        message: `You successfully applied for ${job.title} at ${job.companyName}.`,
+        type: 'APPLICATION',
+        date: new Date().toISOString().replace('T', ' ').slice(0, 16),
+        isRead: false,
+      });
+    } catch (notifErr) {
+      console.warn('[Application Notification Warning]', notifErr.message);
     }
 
-    res.status(201).json(newApp);
+    res.status(201).json({
+      ...newApp,
+      application: newApp,
+      success: true,
+    });
   } catch (error) {
     next(error);
   }
@@ -89,29 +120,45 @@ exports.updateStatus = async (req, res, next) => {
     const { appId } = req.params;
     const { status, interviewDetails } = req.body;
 
-    let application = null;
-
-    if (isMongoConnected()) {
-      const updateDoc = { status };
-      if (interviewDetails) updateDoc.interviewDetails = interviewDetails;
-      application = await Application.findOneAndUpdate(
-        { id: appId },
-        { $set: updateDoc },
-        { new: true }
-      );
-    } else {
-      application = inMemoryData.applications.find((a) => a.id === appId);
-      if (application) {
-        application.status = status;
-        if (interviewDetails) application.interviewDetails = interviewDetails;
-      }
+    if (!status) {
+      return res.status(400).json({ detail: 'Status is required' });
     }
+
+    const updateDoc = { status };
+    if (interviewDetails) updateDoc.interviewDetails = interviewDetails;
+
+    const application = await Application.findOneAndUpdate(
+      { $or: [{ id: appId }, ...(appId.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: appId }] : [])] },
+      { $set: updateDoc },
+      { new: true }
+    );
 
     if (!application) {
       return res.status(404).json({ detail: 'Application not found' });
     }
 
-    res.json(application);
+    // Create notification for candidate
+    try {
+      await Notification.create({
+        id: `NOTIF-${Date.now()}`,
+        studentId: application.studentId,
+        title: `Application Status: ${status.replace('_', ' ')}`,
+        message: `Your application for ${application.jobTitle} at ${application.companyName} is now ${status.replace('_', ' ')}.`,
+        type: status === 'INTERVIEW_SCHEDULED' ? 'INTERVIEW' : 'STATUS',
+        date: new Date().toISOString().replace('T', ' ').slice(0, 16),
+        isRead: false,
+      });
+    } catch (notifErr) {
+      console.warn('[Status Notification Warning]', notifErr.message);
+    }
+
+    const appObj = application.toObject ? application.toObject() : application;
+
+    res.json({
+      ...appObj,
+      application: appObj,
+      success: true,
+    });
   } catch (error) {
     next(error);
   }

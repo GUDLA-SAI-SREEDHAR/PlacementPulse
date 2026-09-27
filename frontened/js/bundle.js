@@ -1,8 +1,8 @@
 /**
  * PlacementPulse - Bundled Single File Application (No CORS / Module Restrictions)
- * Optimized for file:// protocol direct double-click loading
+ * Optimized for file:// protocol direct double-click loading & Vercel deployment
  */
-(function() {
+(function () {
   'use strict';
 
   const React = window.React;
@@ -222,7 +222,9 @@ const INITIAL_DATA = {
  * Connects Frontend PortalContext & Store to backend REST API service (http://127.0.0.1:8000/api)
  */
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const API_BASE_URL = typeof window !== 'undefined' && window.location && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://127.0.0.1:8000/api'
+  : (typeof window !== 'undefined' && window.location && window.location.origin && !window.location.origin.startsWith('file:') ? `${window.location.origin}/api` : 'http://127.0.0.1:8000/api');
 
 class ApiClient {
   constructor(baseUrl = API_BASE_URL) {
@@ -431,6 +433,7 @@ function analyzeResume(resumeText, targetRoleCategory = 'software') {
       matchedKeywords: [],
       missingKeywords: [],
       sectionScores: { contact: 0, summary: 0, education: 0, skills: 0, experience: 0, projects: 0 },
+      heatmapLines: [],
       heatmapData: []
     };
   }
@@ -515,6 +518,7 @@ function analyzeResume(resumeText, targetRoleCategory = 'software') {
 function renderBranchBarChart(containerId, branchData) {
   const container = document.getElementById(containerId);
   if (!container) return;
+  if (!Array.isArray(branchData)) branchData = [];
 
   const maxRate = 100;
   
@@ -548,6 +552,7 @@ function renderBranchBarChart(containerId, branchData) {
 function renderSalaryDonutChart(containerId, salaryData) {
   const container = document.getElementById(containerId);
   if (!container) return;
+  if (!Array.isArray(salaryData)) salaryData = [];
 
   // Render visual donut segments and legend
   const totalCount = salaryData.reduce((acc, curr) => acc + curr.count, 0);
@@ -598,6 +603,7 @@ function renderSalaryDonutChart(containerId, salaryData) {
 
 function renderResumeHeatmap(containerElement, heatmapLines) {
   if (!containerElement) return;
+  if (!Array.isArray(heatmapLines)) heatmapLines = [];
 
   containerElement.innerHTML = '';
 
@@ -778,6 +784,9 @@ function speakQuestion(text) {
 // --- Source: PortalContext.js ---
 
 
+
+
+
 const STORAGE_KEY = 'vpc_portal_state_v1';
 
 const PortalContext = createContext(null);
@@ -934,13 +943,38 @@ function PortalProvider({ children }) {
       const nextRecruiter = { ...prev.recruiterProfile };
 
       if (role === 'STUDENT') {
+        nextStudent.id = 'STU-' + Date.now().toString().slice(-4);
+        nextStudent.rollNo = '22BCS' + Math.floor(100 + Math.random() * 900);
         nextStudent.name = name;
         nextStudent.email = email;
         if (branch) nextStudent.branch = branch;
         if (cgpa) nextStudent.cgpa = parseFloat(cgpa);
+        if (!nextStudent.skills || nextStudent.skills.length === 0) {
+          nextStudent.skills = ['JavaScript', 'React', 'Python', 'Data Structures', 'SQL'];
+        }
+        if (!nextStudent.resume || !nextStudent.resume.content) {
+          nextStudent.resume = {
+            fileName: 'Resume_Draft.txt',
+            uploadDate: new Date().toISOString().split('T')[0],
+            atsScore: 78,
+            content: 'Experienced student with skills in JavaScript, React, Python, Data Structures, and SQL.'
+          };
+        }
+        if (!nextStudent.readinessBreakdown || nextStudent.readinessBreakdown.overall === 0) {
+          nextStudent.readinessBreakdown = {
+            overall: 78,
+            technical: 80,
+            aptitude: 75,
+            softSkills: 80,
+            resumeQuality: 78
+          };
+        }
       } else if (role === 'RECRUITER') {
+        nextRecruiter.id = 'REC-' + Date.now().toString().slice(-4);
         nextRecruiter.companyName = name;
         nextRecruiter.email = email;
+        nextRecruiter.industry = 'Technology & Software';
+        nextRecruiter.contactPerson = name + ' HR Team';
       }
 
       return {
@@ -1026,8 +1060,9 @@ function PortalProvider({ children }) {
     const job = state.jobs.find(j => j.id === jobId);
     if (!job) return false;
 
+    const currentStudentId = state.studentProfile?.id || state.studentProfile?.studentId || '101';
     const existing = state.applications.find(
-      a => a.studentId === state.studentProfile.id && a.jobId === jobId
+      a => (String(a.studentId) === String(currentStudentId) || String(a.studentId) === String(state.studentProfile?.id)) && a.jobId === jobId
     );
     if (existing) return false;
 
@@ -1039,12 +1074,12 @@ function PortalProvider({ children }) {
 
     const newApp = {
       id: `APP-${Date.now().toString().slice(-4)}`,
-      studentId: state.studentProfile.id,
-      studentName: state.studentProfile.name,
-      rollNo: state.studentProfile.rollNo,
-      branch: state.studentProfile.branch,
-      cgpa: state.studentProfile.cgpa,
-      atsScore: state.studentProfile.resume.atsScore || 84,
+      studentId: currentStudentId,
+      studentName: state.studentProfile?.name || 'Student',
+      rollNo: state.studentProfile?.rollNo || '22BCS101',
+      branch: state.studentProfile?.branch || 'Computer Science',
+      cgpa: state.studentProfile?.cgpa || 8.0,
+      atsScore: state.studentProfile?.resume?.atsScore || 84,
       jobId: job.id,
       jobTitle: job.title,
       companyName: job.companyName,
@@ -1119,10 +1154,13 @@ function PortalProvider({ children }) {
       console.warn('[PostJob] Backend job posting warning:', err.message);
     }
 
+    const recruiterId = state.recruiterProfile?.id || 'REC-01';
+    const companyName = state.recruiterProfile?.companyName || 'Recruiter Corp';
+
     const newJob = {
       id: `JOB-${new Date().getFullYear()}-${(state.jobs.length + 1).toString().padStart(2, '0')}`,
-      recruiterId: state.recruiterProfile.id,
-      companyName: state.recruiterProfile.companyName,
+      recruiterId,
+      companyName,
       ...jobData,
       status: 'PENDING',
       postedDate: new Date().toISOString().split('T')[0]
@@ -1131,7 +1169,7 @@ function PortalProvider({ children }) {
     const newNotif = {
       id: `NOTIF-${Date.now()}`,
       title: 'New Job Pending Approval',
-      message: `Recruiter ${state.recruiterProfile.companyName} submitted a job: ${jobData.title}`,
+      message: `Recruiter ${companyName} submitted a job: ${jobData.title}`,
       type: 'JOB',
       date: new Date().toISOString().replace('T', ' ').slice(0, 16),
       isRead: false
@@ -1203,6 +1241,23 @@ function PortalProvider({ children }) {
     }));
   };
 
+  const broadcastNotification = (title, message, type = 'ANNOUNCEMENT') => {
+    const newNotif = {
+      id: `NOTIF-${Date.now()}`,
+      title,
+      message,
+      type,
+      date: new Date().toISOString().replace('T', ' ').slice(0, 16),
+      isRead: false
+    };
+
+    setState(prev => ({
+      ...prev,
+      notifications: [newNotif, ...prev.notifications]
+    }));
+    return true;
+  };
+
   const resetDemoData = () => {
     localStorage.removeItem(STORAGE_KEY);
     setState(JSON.parse(JSON.stringify(INITIAL_DATA)));
@@ -1224,6 +1279,7 @@ function PortalProvider({ children }) {
     verifyStudent,
     addInterviewExperience,
     markAllNotificationsRead,
+    broadcastNotification,
     resetDemoData
   };
 
@@ -1240,6 +1296,8 @@ function usePortal() {
 
 
 // --- Source: Header.js ---
+
+
 
 
 
@@ -1325,14 +1383,14 @@ function Header() {
 
         <div className="user-profile-pill">
           <div className="user-avatar">
-            ${currentRole === 'STUDENT' ? 'AJ' : currentRole === 'RECRUITER' ? 'NA' : 'PO'}
+            ${currentRole === 'STUDENT' ? ((state.studentProfile?.name || 'S').slice(0, 2).toUpperCase()) : currentRole === 'RECRUITER' ? ((state.recruiterProfile?.companyName || 'R').slice(0, 2).toUpperCase()) : 'PO'}
           </div>
           <div className="user-meta">
             <span className="user-name">
-              ${currentRole === 'STUDENT' ? state.studentProfile.name : currentRole === 'RECRUITER' ? state.recruiterProfile.companyName : 'Dr. M. Sharma'}
+              ${currentRole === 'STUDENT' ? (state.studentProfile?.name || 'Student') : currentRole === 'RECRUITER' ? (state.recruiterProfile?.companyName || 'Recruiter') : 'Dr. M. Sharma'}
             </span>
-            <span className=${`user-role-badge ${currentRole.toLowerCase()}`}>
-              ${currentRole.replace('_', ' ')}
+            <span className=${`user-role-badge ${(currentRole || 'STUDENT').toLowerCase()}`}>
+              ${(currentRole || 'STUDENT').replace('_', ' ')}
             </span>
           </div>
         </div>
@@ -1360,6 +1418,7 @@ function Header() {
 
 
 
+
 function Footer() {
   return html`
     <footer className="app-footer">
@@ -1382,8 +1441,9 @@ function Footer() {
 }
 
 
-
 // --- Source: AnalyticsCharts.js ---
+
+
 
 
 
@@ -1423,18 +1483,23 @@ function AnalyticsCharts({ branchStats, salaryDistribution }) {
 
 
 
+
+
+
+
 function AtsChecker({ isHeatmapOnly = false }) {
   const { state } = usePortal();
-  const student = state.studentProfile;
+  const student = state.studentProfile || {};
   const heatmapContainerRef = useRef(null);
 
-  const analysis = analyzeResume(student.resume.content, 'software');
+  const resumeContent = student.resume?.content || '';
+  const analysis = analyzeResume(resumeContent, 'software');
 
   useEffect(() => {
     if (heatmapContainerRef.current) {
-      renderResumeHeatmap(heatmapContainerRef.current, analysis.heatmapLines);
+      renderResumeHeatmap(heatmapContainerRef.current, analysis.heatmapLines || []);
     }
-  }, [student.resume.content]);
+  }, [student.resume?.content]);
 
   if (isHeatmapOnly) {
     return html`
@@ -1516,24 +1581,30 @@ function AtsChecker({ isHeatmapOnly = false }) {
 
 
 
+
+
 function InterviewExperiences() {
   const { state, addInterviewExperience } = usePortal();
-  const experiences = state.interviewExperiences;
+  const experiences = state.interviewExperiences || [];
 
-  const handleShare = () => {
+  const handleShare = async () => {
     const company = prompt('Company Name:');
     const role = prompt('Role Title:');
     const tips = prompt('Key Interview Tips & Preparation Guidance:');
 
     if (company && role) {
-      addInterviewExperience({
-        company,
-        role,
-        author: state.studentProfile.name,
-        difficulty: 'Medium',
-        tips: tips || 'Focus on core technical fundamentals and system design basics.'
-      });
-      alert('Your interview experience has been published!');
+      try {
+        await addInterviewExperience({
+          company,
+          role,
+          author: state.studentProfile?.name || 'Student',
+          difficulty: 'Medium',
+          tips: tips || 'Focus on core technical fundamentals and system design basics.'
+        });
+        alert('Your interview experience has been published!');
+      } catch (err) {
+        alert(err.message || 'Failed to submit interview experience.');
+      }
     }
   };
 
@@ -1545,7 +1616,7 @@ function InterviewExperiences() {
       </div>
 
       <div className="experiences-list">
-        ${experiences.map(exp => html`
+        ${experiences.length === 0 ? html`<p className="text-muted">No interview experiences shared yet. Be the first to contribute!</p>` : experiences.map(exp => html`
           <div key=${exp.id} className="card experience-card mb-3">
             <div className="card-header">
               <h3>${exp.company} - ${exp.role}</h3>
@@ -1576,15 +1647,25 @@ function InterviewExperiences() {
 
 
 
+
+
 function JobDrives({ isApplicationsOnly = false, isRecommendationsOnly = false }) {
   const { state, applyForJob } = usePortal();
-  const student = state.studentProfile;
-  const approvedJobs = state.jobs.filter(j => j.status === 'APPROVED');
-  const myApps = state.applications.filter(a => a.studentId === student.id);
+  const student = state.studentProfile || {};
+  const studentId = student.id || student.studentId || '101';
+  const approvedJobs = (state.jobs || []).filter(j => j.status === 'APPROVED');
+  const myApps = (state.applications || []).filter(a => String(a.studentId) === String(studentId) || String(a.studentId) === String(student.id));
 
-  const handleApply = (jobId) => {
-    if (applyForJob(jobId)) {
-      alert('Application submitted successfully!');
+  const handleApply = async (jobId) => {
+    try {
+      const success = await applyForJob(jobId);
+      if (success) {
+        alert('Application submitted successfully!');
+      } else {
+        alert('You have already applied for this job drive or it is no longer accepting applications.');
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to submit application.');
     }
   };
 
@@ -1687,8 +1768,8 @@ function JobDrives({ isApplicationsOnly = false, isRecommendationsOnly = false }
       </div>
 
       <div className="jobs-grid">
-        ${approvedJobs.map(job => {
-          const isEligible = student.cgpa >= job.minCgpa;
+        ${approvedJobs.length === 0 ? html`<p className="text-muted">No active approved campus drives available at this time.</p>` : approvedJobs.map(job => {
+          const isEligible = student.cgpa != null ? student.cgpa >= job.minCgpa : true;
           const app = myApps.find(a => a.jobId === job.id);
 
           return html`
@@ -1727,6 +1808,8 @@ function JobDrives({ isApplicationsOnly = false, isRecommendationsOnly = false }
 
 
 // --- Source: MockInterview.js ---
+
+
 
 
 
@@ -1840,10 +1923,13 @@ function MockInterview() {
 
 
 
+
+
 function SkillGapAnalyzer() {
   const { state } = usePortal();
-  const student = state.studentProfile;
-  const roles = state.targetRoles;
+  const student = state.studentProfile || {};
+  const roles = state.targetRoles || [];
+  const studentSkills = Array.isArray(student.skills) ? student.skills : [];
 
   return html`
     <div className="tab-pane animate-fade-in">
@@ -1854,8 +1940,8 @@ function SkillGapAnalyzer() {
 
       <div className="target-roles-grid">
         ${roles.map(role => {
-          const matched = role.requiredSkills.filter(s => student.skills.some(st => st.toLowerCase() === s.toLowerCase()));
-          const missing = role.requiredSkills.filter(s => !student.skills.some(st => st.toLowerCase() === s.toLowerCase()));
+          const matched = (role.requiredSkills || []).filter(s => studentSkills.some(st => st.toLowerCase() === s.toLowerCase()));
+          const missing = (role.requiredSkills || []).filter(s => !studentSkills.some(st => st.toLowerCase() === s.toLowerCase()));
           const matchPercent = Math.round((matched.length / role.requiredSkills.length) * 100);
 
           return html`
@@ -1894,14 +1980,15 @@ function SkillGapAnalyzer() {
 
 
 
-function RecruiterDashboard({ recruiter, myJobs, myApps, shortlisted }) {
+
+function RecruiterDashboard({ recruiter = {}, myJobs = [], myApps = [], shortlisted = [] }) {
   const selectedCount = myApps.filter(a => a.status === 'SELECTED').length;
 
   return html`
     <div className="tab-pane animate-fade-in">
       <div className="welcome-hero-card recruiter">
         <div className="hero-text">
-          <h2>Recruiter Console: ${recruiter.companyName}</h2>
+          <h2>Recruiter Console: ${recruiter.companyName || 'Recruiter Portal'}</h2>
           <p>Manage campus recruitment drives, candidate applications, and interview scheduling.</p>
         </div>
       </div>
@@ -1948,7 +2035,8 @@ function RecruiterDashboard({ recruiter, myJobs, myApps, shortlisted }) {
 
 
 
-function CompanyProfile({ recruiter }) {
+
+function CompanyProfile({ recruiter = {} }) {
   return html`
     <div className="tab-pane animate-fade-in">
       <div className="page-title-bar">
@@ -1962,19 +2050,19 @@ function CompanyProfile({ recruiter }) {
           <div className="form-grid">
             <div className="form-group">
               <label>Company Name</label>
-              <input type="text" value=${recruiter.companyName} readOnly className="input-disabled" />
+              <input type="text" value=${recruiter.companyName || ''} readOnly className="input-disabled" />
             </div>
             <div className="form-group">
               <label>Industry Sector</label>
-              <input type="text" value=${recruiter.industry} readOnly className="input-disabled" />
+              <input type="text" value=${recruiter.industry || ''} readOnly className="input-disabled" />
             </div>
             <div className="form-group">
               <label>Contact Person</label>
-              <input type="text" value=${recruiter.contactPerson} readOnly className="input-disabled" />
+              <input type="text" value=${recruiter.contactPerson || ''} readOnly className="input-disabled" />
             </div>
             <div className="form-group">
               <label>Work Email</label>
-              <input type="text" value=${recruiter.email} readOnly className="input-disabled" />
+              <input type="text" value=${recruiter.email || ''} readOnly className="input-disabled" />
             </div>
           </div>
         </div>
@@ -1988,7 +2076,8 @@ function CompanyProfile({ recruiter }) {
 
 
 
-function JobPostingManager({ myJobs, onPostJob }) {
+
+function JobPostingManager({ myJobs = [], onPostJob }) {
   const [jobTitle, setJobTitle] = useState('');
   const [jobCtc, setJobCtc] = useState('');
   const [jobLocation, setJobLocation] = useState('');
@@ -1997,24 +2086,28 @@ function JobPostingManager({ myJobs, onPostJob }) {
   const [jobSkills, setJobSkills] = useState('');
   const [jobDesc, setJobDesc] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onPostJob({
-      title: jobTitle,
-      ctc: jobCtc,
-      location: jobLocation,
-      minCgpa: parseFloat(jobMinCgpa),
-      lastDate: jobLastDate,
-      skillsRequired: jobSkills.split(',').map(s => s.trim()).filter(Boolean),
-      description: jobDesc,
-      eligibleBranches: ['Computer Science & Engineering', 'Information Technology']
-    });
-    alert('Job opening posted successfully!');
-    setJobTitle('');
-    setJobCtc('');
-    setJobLocation('');
-    setJobSkills('');
-    setJobDesc('');
+    try {
+      await onPostJob({
+        title: jobTitle,
+        ctc: jobCtc,
+        location: jobLocation,
+        minCgpa: parseFloat(jobMinCgpa) || 6.0,
+        lastDate: jobLastDate || '2026-12-31',
+        skillsRequired: jobSkills ? jobSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
+        description: jobDesc,
+        eligibleBranches: ['Computer Science & Engineering', 'Information Technology']
+      });
+      alert('Job opening posted successfully!');
+      setJobTitle('');
+      setJobCtc('');
+      setJobLocation('');
+      setJobSkills('');
+      setJobDesc('');
+    } catch (err) {
+      alert(err.message || 'Failed to post job.');
+    }
   };
 
   return html`
@@ -2106,7 +2199,7 @@ function JobPostingManager({ myJobs, onPostJob }) {
       </div>
 
       <div className="jobs-grid">
-        ${myJobs.map(job => html`
+        ${myJobs.length === 0 ? html`<p className="text-muted">No jobs posted yet. Submit a new job posting above!</p>` : myJobs.map(job => html`
           <div key=${job.id} className="job-card">
             <div className="job-card-header">
               <div>
@@ -2135,7 +2228,8 @@ function JobPostingManager({ myJobs, onPostJob }) {
 
 
 
-function StudentApplicationsTable({ myApps }) {
+
+function StudentApplicationsTable({ myApps = [] }) {
   return html`
     <div className="tab-pane animate-fade-in">
       <div className="page-title-bar">
@@ -2161,7 +2255,11 @@ function StudentApplicationsTable({ myApps }) {
                 </tr>
               </thead>
               <tbody>
-                ${myApps.map(a => html`
+                ${myApps.length === 0 ? html`
+                  <tr>
+                    <td colSpan="7" className="text-center text-muted">No student applications submitted yet.</td>
+                  </tr>
+                ` : myApps.map(a => html`
                   <tr key=${a.id}>
                     <td><strong>${a.studentName}</strong></td>
                     <td>${a.rollNo}</td>
@@ -2186,10 +2284,15 @@ function StudentApplicationsTable({ myApps }) {
 
 
 
-function CandidatePipeline({ myApps, onUpdateStatus }) {
-  const handleStatusUpdate = (appId, status) => {
-    onUpdateStatus(appId, status);
-    alert(`Candidate status updated to: ${status}`);
+
+function CandidatePipeline({ myApps = [], onUpdateStatus }) {
+  const handleStatusUpdate = async (appId, status) => {
+    try {
+      await onUpdateStatus(appId, status);
+      alert(`Candidate status updated to: ${status}`);
+    } catch (err) {
+      alert(err.message || 'Status update failed.');
+    }
   };
 
   return html`
@@ -2217,7 +2320,11 @@ function CandidatePipeline({ myApps, onUpdateStatus }) {
                 </tr>
               </thead>
               <tbody>
-                ${myApps.map(a => html`
+                ${myApps.length === 0 ? html`
+                  <tr>
+                    <td colSpan="6" className="text-center text-muted">No student applications received yet.</td>
+                  </tr>
+                ` : myApps.map(a => html`
                   <tr key=${a.id}>
                     <td><strong>${a.studentName}</strong></td>
                     <td>${a.rollNo}</td>
@@ -2248,26 +2355,36 @@ function CandidatePipeline({ myApps, onUpdateStatus }) {
 
 
 
-function InterviewScheduler({ myApps, onUpdateStatus }) {
+
+function InterviewScheduler({ myApps = [], onUpdateStatus }) {
   const [schedAppId, setSchedAppId] = useState(myApps[0]?.id || '');
   const [schedDate, setSchedDate] = useState('');
   const [schedTime, setSchedTime] = useState('');
   const [schedMode, setSchedMode] = useState('Virtual (Google Meet)');
   const [schedLink, setSchedLink] = useState('');
 
-  const handleScheduleSubmit = (e) => {
+  const currentAppId = schedAppId || (myApps[0]?.id || '');
+
+  const handleScheduleSubmit = async (e) => {
     e.preventDefault();
-    if (!schedAppId) return;
-    onUpdateStatus(schedAppId, 'INTERVIEW_SCHEDULED', {
-      date: schedDate,
-      time: schedTime,
-      mode: schedMode,
-      link: schedLink
-    });
-    alert('Interview scheduled successfully!');
-    setSchedDate('');
-    setSchedTime('');
-    setSchedLink('');
+    if (!currentAppId) {
+      alert('Please select a candidate to schedule an interview.');
+      return;
+    }
+    try {
+      await onUpdateStatus(currentAppId, 'INTERVIEW_SCHEDULED', {
+        date: schedDate,
+        time: schedTime,
+        mode: schedMode,
+        link: schedLink
+      });
+      alert('Interview scheduled successfully!');
+      setSchedDate('');
+      setSchedTime('');
+      setSchedLink('');
+    } catch (err) {
+      alert(err.message || 'Failed to schedule interview.');
+    }
   };
 
   const scheduledApps = myApps.filter(a => a.interviewDetails);
@@ -2287,8 +2404,8 @@ function InterviewScheduler({ myApps, onUpdateStatus }) {
             <form onSubmit=${handleScheduleSubmit}>
               <div className="form-group">
                 <label>Candidate:</label>
-                <select value=${schedAppId} onChange=${e => setSchedAppId(e.target.value)} required>
-                  ${myApps.map(a => html`<option key=${a.id} value=${a.id}>${a.studentName} (${a.rollNo})</option>`)}
+                <select value=${currentAppId} onChange=${e => setSchedAppId(e.target.value)} required>
+                  ${myApps.length === 0 ? html`<option value="">No candidates available</option>` : myApps.map(a => html`<option key=${a.id} value=${a.id}>${a.studentName} (${a.rollNo})</option>`)}
                 </select>
               </div>
               <div className="form-group">
@@ -2338,12 +2455,23 @@ function InterviewScheduler({ myApps, onUpdateStatus }) {
 
 
 
+
+
 function CandidateCommunication() {
+  const { broadcastNotification, state } = usePortal();
   const [msgSubject, setMsgSubject] = useState('');
   const [msgContent, setMsgContent] = useState('');
 
   const handleSendMessage = (e) => {
     e.preventDefault();
+    if (!msgSubject.trim() || !msgContent.trim()) {
+      alert('Please fill in both subject and message content.');
+      return;
+    }
+    const company = state.recruiterProfile?.companyName || 'Recruiter';
+    if (broadcastNotification) {
+      broadcastNotification(`[${company}] ${msgSubject}`, msgContent, 'ANNOUNCEMENT');
+    }
     alert('Announcement message sent to candidate notifications!');
     setMsgSubject('');
     setMsgContent('');
@@ -2395,6 +2523,8 @@ function CandidateCommunication() {
 
 
 
+
+
 function LoginView() {
   const { state, login, register } = usePortal();
 
@@ -2418,18 +2548,21 @@ function LoginView() {
     setErrorMessage('');
   };
 
-
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
-    const res = login(email, password, selectedRole);
-    if (!res.success) {
-      setErrorMessage(res.message);
+    try {
+      const res = await login(email, password, selectedRole);
+      if (res && !res.success) {
+        setErrorMessage(res.message || 'Login failed. Please check your credentials.');
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Login request encountered an error.');
     }
   };
 
-  const handleRegisterSubmit = (e) => {
+  const handleRegisterSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
@@ -2441,9 +2574,15 @@ function LoginView() {
       branch: regBranch,
       cgpa: regCgpa
     };
-    const res = register(userData);
-    if (!res.success) {
-      setErrorMessage(res.message);
+    try {
+      const res = await register(userData);
+      if (res && !res.success) {
+        setErrorMessage(res.message || 'Registration failed.');
+      } else {
+        setSuccessMessage('Registration successful! Redirecting to your dashboard...');
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Registration request encountered an error.');
     }
   };
 
@@ -2510,7 +2649,7 @@ function LoginView() {
                   id="login-email" 
                   value=${email}
                   onChange=${(e) => setEmail(e.target.value)}
-                  placeholder="user@university.edu" 
+                  placeholder=${selectedRole === 'STUDENT' ? 'student@university.edu' : selectedRole === 'RECRUITER' ? 'recruiter@company.com' : 'officer@university.edu'} 
                   required 
                 />
               </div>
@@ -2630,6 +2769,7 @@ function LoginView() {
             </button>
           </form>
         `}
+
       </div>
     </div>
   `;
@@ -2640,60 +2780,105 @@ function LoginView() {
 
 
 
+
+
+
+
+
+
+
 function StudentView() {
   const { state, updateStudentProfile, updateResumeContent, markAllNotificationsRead } = usePortal();
-  const student = state.studentProfile;
-  const jobs = state.jobs.filter(j => j.status === 'APPROVED');
-  const myApps = state.applications.filter(a => a.studentId === student.id);
-  const unreadNotifs = state.notifications.filter(n => !n.isRead);
+  
+  const student = state.studentProfile || {
+    name: 'Student',
+    email: '',
+    phone: '',
+    program: 'B.Tech',
+    branch: 'Computer Science & Engineering',
+    cgpa: 8.0,
+    passingYear: 2026,
+    skills: ['JavaScript', 'React', 'Python'],
+    isVerified: false,
+    resume: {
+      fileName: 'No Resume Uploaded',
+      uploadDate: 'N/A',
+      atsScore: 75,
+      content: ''
+    },
+    readinessBreakdown: {
+      overall: 75,
+      technical: 75,
+      aptitude: 70,
+      softSkills: 80,
+      resumeQuality: 75
+    }
+  };
+
+  const studentId = student.id || student.studentId || '101';
+  const jobs = (state.jobs || []).filter(j => j.status === 'APPROVED');
+  const myApps = (state.applications || []).filter(a => String(a.studentId) === String(studentId) || String(a.studentId) === String(student.id));
+  const unreadNotifs = (state.notifications || []).filter(n => !n.isRead);
 
   const [activeTab, setActiveTab] = useState('readiness');
 
   // Profile Edit State
   const [profileForm, setProfileForm] = useState({
-    name: student.name,
-    email: student.email,
-    phone: student.phone,
-    program: student.program,
-    branch: student.branch,
-    cgpa: student.cgpa,
-    passingYear: student.passingYear,
-    skills: student.skills.join(', ')
+    name: student.name || '',
+    email: student.email || '',
+    phone: student.phone || '',
+    program: student.program || 'B.Tech',
+    branch: student.branch || 'Computer Science & Engineering',
+    cgpa: student.cgpa != null ? student.cgpa : '8.00',
+    passingYear: student.passingYear || 2026,
+    skills: Array.isArray(student.skills) ? student.skills.join(', ') : ''
   });
 
   // Resume Text Editor State
-  const [resumeText, setResumeText] = useState(student.resume.content);
+  const [resumeText, setResumeText] = useState(student.resume?.content || '');
 
-  const handleProfileSubmit = (e) => {
+  const handleProfileSubmit = async (e) => {
     e.preventDefault();
-    updateStudentProfile({
-      name: profileForm.name,
-      email: profileForm.email,
-      phone: profileForm.phone,
-      program: profileForm.program,
-      branch: profileForm.branch,
-      cgpa: parseFloat(profileForm.cgpa),
-      passingYear: parseInt(profileForm.passingYear),
-      skills: profileForm.skills.split(',').map(s => s.trim()).filter(Boolean)
-    });
-    alert('Profile updated successfully!');
+    try {
+      await updateStudentProfile({
+        name: profileForm.name,
+        email: profileForm.email,
+        phone: profileForm.phone,
+        program: profileForm.program,
+        branch: profileForm.branch,
+        cgpa: parseFloat(profileForm.cgpa) || 0,
+        passingYear: parseInt(profileForm.passingYear) || 2026,
+        skills: profileForm.skills ? profileForm.skills.split(',').map(s => s.trim()).filter(Boolean) : []
+      });
+      alert('Profile updated successfully!');
+    } catch (err) {
+      alert(err.message || 'Failed to update profile.');
+    }
   };
 
-  const handleSaveResumeText = () => {
-    const score = updateResumeContent(resumeText, student.resume.fileName);
-    alert(`Resume text saved! Updated ATS Match Score: ${score}%`);
+  const handleSaveResumeText = async () => {
+    try {
+      const score = await updateResumeContent(resumeText, student.resume?.fileName || 'Updated_Resume.txt');
+      alert(`Resume text saved! Updated ATS Match Score: ${score}%`);
+    } catch (err) {
+      alert(err.message || 'Failed to save resume.');
+    }
   };
 
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files && e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (evt) => {
-        const text = evt.target.result;
-        setResumeText(text);
-        const score = updateResumeContent(text, file.name);
-        alert(`Uploaded ${file.name}! Calculated ATS Score: ${score}%`);
-        setActiveTab('ats');
+      reader.onload = async (evt) => {
+        try {
+          const text = evt.target.result;
+          setResumeText(text);
+          const score = await updateResumeContent(text, file.name);
+          alert(`Uploaded ${file.name}! Calculated ATS Score: ${score}%`);
+          setActiveTab('ats');
+        } catch (err) {
+          alert('Failed to parse uploaded resume.');
+        }
       };
       reader.readAsText(file);
     }
@@ -2987,12 +3172,12 @@ function StudentView() {
       <aside className="portal-sidebar">
         <div className="student-mini-card">
           <div className="avatar-circle">
-            ${student.name.charAt(0)}${student.name.split(' ')[1] ? student.name.split(' ')[1].charAt(0) : ''}
+            ${((student.name || 'Student').split(' ').filter(Boolean).slice(0, 2).map(p => p.charAt(0)).join('') || 'ST').toUpperCase()}
           </div>
           <div className="mini-info">
-            <h4 className="student-name-text">${student.name}</h4>
-            <span className="roll-badge">${student.rollNo}</span>
-            <span className="cgpa-pill">CGPA: ${student.cgpa}</span>
+            <h4 className="student-name-text">${student.name || 'Student'}</h4>
+            <span className="roll-badge">${student.rollNo || '22BCS101'}</span>
+            <span className="cgpa-pill">CGPA: ${student.cgpa != null ? student.cgpa : 'N/A'}</span>
           </div>
         </div>
 
@@ -3038,10 +3223,10 @@ function StudentView() {
         <div className="readiness-widget-mini">
           <div className="widget-header">
             <span>Readiness Score</span>
-            <span className="score-num">${student.readinessBreakdown.overall}/100</span>
+            <span className="score-num">${student.readinessBreakdown?.overall || 0}/100</span>
           </div>
           <div className="progress-bar-bg">
-            <div className="progress-bar-fill" style=${{ width: `${student.readinessBreakdown.overall}%` }}></div>
+            <div className="progress-bar-fill" style=${{ width: `${student.readinessBreakdown?.overall || 0}%` }}></div>
           </div>
         </div>
       </aside>
@@ -3058,11 +3243,25 @@ function StudentView() {
 
 
 
+
+
+
+
+
+
+
+
+
 function RecruiterView() {
   const { state, postNewJob, updateApplicationStatus } = usePortal();
-  const recruiter = state.recruiterProfile;
-  const myJobs = state.jobs.filter(j => j.recruiterId === recruiter.id || j.companyName === recruiter.companyName);
-  const myApps = state.applications.filter(a => a.companyName === recruiter.companyName);
+  const recruiter = state.recruiterProfile || {
+    id: 'REC-01',
+    companyName: 'Acme Innovations',
+    industry: 'Technology',
+    contactPerson: 'Recruiter HR'
+  };
+  const myJobs = (state.jobs || []).filter(j => j.recruiterId === recruiter.id || j.companyName === recruiter.companyName);
+  const myApps = (state.applications || []).filter(a => a.companyName === recruiter.companyName);
   const shortlisted = myApps.filter(a => a.status === 'SHORTLISTED' || a.status === 'INTERVIEW_SCHEDULED');
 
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -3158,11 +3357,20 @@ function RecruiterView() {
 
 
 
+
+
+
 function AdminView() {
-  const { state, verifyStudent, approveJob } = usePortal();
-  const pendingJobs = state.jobs.filter(j => j.status === 'PENDING');
-  const pendingStudents = state.studentsList.filter(s => s.status === 'PENDING');
-  const analytics = state.analytics;
+  const { state, verifyStudent, approveJob, broadcastNotification } = usePortal();
+  const pendingJobs = (state.jobs || []).filter(j => j.status === 'PENDING');
+  const pendingStudents = (state.studentsList || []).filter(s => s.status === 'PENDING');
+  const analytics = state.analytics || {
+    placementRate: 85,
+    avgPackage: '11.8 LPA',
+    totalCompaniesVisited: 68,
+    branchStats: [],
+    salaryDistribution: []
+  };
   const recruiter = state.recruiterProfile;
 
   const [activeTab, setActiveTab] = useState('analytics');
@@ -3174,18 +3382,33 @@ function AdminView() {
   // Report Generator State
   const [showReport, setShowReport] = useState(false);
 
-  const handleVerify = (studentId, isVerified) => {
-    verifyStudent(studentId, isVerified);
-    alert(`Student profile ${isVerified ? 'verified' : 'unverified'}!`);
+  const handleVerify = async (studentId, isVerified) => {
+    try {
+      await verifyStudent(studentId, isVerified);
+      alert(`Student profile ${isVerified ? 'verified' : 'unverified'}!`);
+    } catch (err) {
+      alert(err.message || 'Failed to update verification status.');
+    }
   };
 
-  const handleApproveJob = (jobId, status) => {
-    approveJob(jobId, status);
-    alert(`Job post status updated to ${status}!`);
+  const handleApproveJob = async (jobId, status) => {
+    try {
+      await approveJob(jobId, status);
+      alert(`Job post status updated to ${status}!`);
+    } catch (err) {
+      alert(err.message || 'Failed to update job approval status.');
+    }
   };
 
   const handleBroadcast = (e) => {
     e.preventDefault();
+    if (!bcastTitle.trim()) {
+      alert('Please enter a notification title.');
+      return;
+    }
+    if (broadcastNotification) {
+      broadcastNotification(bcastTitle, bcastMsg);
+    }
     alert(`Notification broadcasted to all students & portal users!`);
     setBcastTitle('');
     setBcastMsg('');
@@ -3534,6 +3757,15 @@ function AdminView() {
 
 
 // --- Source: app.js ---
+
+
+
+
+
+
+
+
+
 
 
 

@@ -6,13 +6,21 @@ const html = htm.bind(React.createElement);
 
 export function JobDrives({ isApplicationsOnly = false, isRecommendationsOnly = false }) {
   const { state, applyForJob } = usePortal();
-  const student = state.studentProfile;
-  const approvedJobs = state.jobs.filter(j => j.status === 'APPROVED');
-  const myApps = state.applications.filter(a => a.studentId === student.id);
+  const student = state.studentProfile || {};
+  const studentId = student.id || student.studentId || '101';
+  const approvedJobs = (state.jobs || []).filter(j => j.status === 'APPROVED');
+  const myApps = (state.applications || []).filter(a => String(a.studentId) === String(studentId) || String(a.studentId) === String(student.id));
 
-  const handleApply = (jobId) => {
-    if (applyForJob(jobId)) {
-      alert('Application submitted successfully!');
+  const handleApply = async (jobId) => {
+    try {
+      const success = await applyForJob(jobId);
+      if (success) {
+        alert('Application submitted successfully!');
+      } else {
+        alert('You have already applied for this job drive or it is no longer accepting applications.');
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to submit application.');
     }
   };
 
@@ -115,8 +123,8 @@ export function JobDrives({ isApplicationsOnly = false, isRecommendationsOnly = 
       </div>
 
       <div className="jobs-grid">
-        ${approvedJobs.map(job => {
-          const isEligible = student.cgpa >= job.minCgpa;
+        ${approvedJobs.length === 0 ? html`<p className="text-muted">No active approved campus drives available at this time.</p>` : approvedJobs.map(job => {
+          const isEligible = student.cgpa != null ? student.cgpa >= job.minCgpa : true;
           const app = myApps.find(a => a.jobId === job.id);
 
           return html`
