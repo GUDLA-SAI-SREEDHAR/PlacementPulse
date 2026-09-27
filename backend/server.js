@@ -55,10 +55,7 @@ app.use(errorHandler);
 
 if (require.main === module) {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`====================================================`);
-    console.log(`🚀 PlacementPulse REST API Server Started!`);
-    console.log(`🌐 API Base URL: http://127.0.0.1:${PORT}/api`);
-    console.log(`====================================================`);
+    console.log(`PlacementPulse REST API Server Started on port ${PORT}`);
   });
 }
 
