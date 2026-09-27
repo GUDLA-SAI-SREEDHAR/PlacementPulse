@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const connectDB = require('./src/config/db');
 const errorHandler = require('./src/middleware/errorHandler');
 const { authMiddleware } = require('./src/middleware/auth');
@@ -22,7 +23,10 @@ const PORT = process.env.PORT || 8000;
 connectDB();
 
 // Middleware
-app.use(cors({ origin: '*' }));
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'http://localhost:8080',
+  credentials: true
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(authMiddleware);
@@ -69,9 +73,16 @@ app.use('/api/experiences', experienceRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
-// 404 Handler
-app.use((req, res) => {
-  res.status(404).json({ detail: `Route ${req.originalUrl} not found`, status: 404 });
+// Serve frontend static files (for single-service deployment)
+const frontendPath = path.join(__dirname, '..', 'frontened');
+app.use(express.static(frontendPath));
+
+// SPA fallback — serve index.html for non-API routes
+app.get('*', (req, res, next) => {
+  if (req.originalUrl.startsWith('/api')) {
+    return res.status(404).json({ detail: `Route ${req.originalUrl} not found`, status: 404 });
+  }
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 // Global Error Handling Middleware

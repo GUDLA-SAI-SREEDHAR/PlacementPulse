@@ -4,9 +4,14 @@ const User = require('../models/User');
 const StudentProfile = require('../models/StudentProfile');
 const RecruiterProfile = require('../models/RecruiterProfile');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'placement_pulse_jwt_secret_key_2026';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set. Server cannot start securely.');
+  process.exit(1);
+}
 
-const HARDCODED_CREDENTIALS = {
+// Demo credentials — only available in development mode
+const HARDCODED_CREDENTIALS = process.env.NODE_ENV === 'production' ? {} : {
   STUDENT: { email: 'alex.johnson@university.edu', password: 'student123', name: 'Alex Johnson', id: 101, role: 'STUDENT' },
   RECRUITER: { email: 's.jenkins@nexusai.com', password: 'recruiter123', name: 'Sarah Jenkins', id: 501, role: 'RECRUITER', companyName: 'Nexus AI Tech' },
   ADMIN: { email: 'admin@university.edu', password: 'admin123', name: 'Admin Officer', id: 1, role: 'ADMIN' },

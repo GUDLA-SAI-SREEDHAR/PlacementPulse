@@ -1,9 +1,21 @@
 node_modules/
 .env
-.env.*
+.env.local
+.env.production
 !.env.example
 
 dist/
 build/
 coverage/
 *.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Vercel
+.vercel/

@@ -219,12 +219,30 @@ const INITIAL_DATA = {
 // --- Source: api.js ---
 /**
  * PlacementPulse API Client Layer
- * Connects Frontend PortalContext & Store to backend REST API service (http://127.0.0.1:8000/api)
+ * Connects Frontend PortalContext & Store to backend REST API service
+ *
+ * Configure production API URL by setting window.__PLACEMENT_PULSE_API_URL__
+ * before this script loads, or it will auto-detect based on environment.
  */
 
-const API_BASE_URL = typeof window !== 'undefined' && window.location && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-  ? 'http://127.0.0.1:8000/api'
-  : (typeof window !== 'undefined' && window.location && window.location.origin && !window.location.origin.startsWith('file:') ? `${window.location.origin}/api` : 'http://127.0.0.1:8000/api');
+const API_BASE_URL = (() => {
+  // 1. Explicit override (set in index.html for production)
+  if (typeof window !== 'undefined' && window.__PLACEMENT_PULSE_API_URL__) {
+    return window.__PLACEMENT_PULSE_API_URL__;
+  }
+  // 2. Local development
+  if (typeof window !== 'undefined' && window.location &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return 'http://127.0.0.1:8000/api';
+  }
+  // 3. Production: same-origin (single-service deploy) or file:// fallback
+  if (typeof window !== 'undefined' && window.location &&
+      !window.location.origin.startsWith('file:')) {
+    return `${window.location.origin}/api`;
+  }
+  // 4. Fallback for file:// protocol
+  return 'http://127.0.0.1:8000/api';
+})();
 
 class ApiClient {
   constructor(baseUrl = API_BASE_URL) {

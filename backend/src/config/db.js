@@ -13,6 +13,13 @@ const connectDB = async () => {
   } catch (error) {
     console.error(`[MongoDB Connection Error] ${error.message}`);
     console.warn(`[MongoDB Warning] Could not connect to MongoDB at ${connUri}`);
+
+    // In production, fail fast — do not use in-memory fallback
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[MongoDB] FATAL: Cannot connect to MongoDB in production. Exiting.');
+      process.exit(1);
+    }
+
     console.log(`[MongoDB Fallback] Launching in-memory MongoDB server (mongodb-memory-server)...`);
 
     try {

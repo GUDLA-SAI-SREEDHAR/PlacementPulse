@@ -1,0 +1,22 @@
+# Render deployment configuration for PlacementPulse backend
+# See: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: placementpulse-api
+    runtime: node
+    plan: free
+    buildCommand: cd backend && npm install --production
+    startCommand: cd backend && node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8000
+      - key: MONGODB_URI
+        sync: false  # Set manually in Render dashboard
+      - key: JWT_SECRET
+        generateValue: true  # Render auto-generates a secure random value
+      - key: CORS_ORIGIN
+        sync: false  # Set to your Vercel frontend URL, e.g. https://placementpulse.vercel.app
+    healthCheckPath: /api/health
