@@ -1,9 +1,9 @@
 /**
  * PlacementPulse API Client Layer
- * Connects Frontend PortalContext & Store to backend REST API service (http://127.0.0.1:8000/api)
+ * Connects Frontend PortalContext & Store to backend REST API service (https://placementpulse-backend-one.vercel.app/api)
  */
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const API_BASE_URL = 'https://placementpulse-backend-one.vercel.app/api';
 
 class ApiClient {
   constructor(baseUrl = API_BASE_URL) {
