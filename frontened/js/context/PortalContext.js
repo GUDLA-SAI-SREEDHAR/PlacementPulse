@@ -144,14 +144,29 @@ export function PortalProvider({ children }) {
       return { success: false, message: 'Password must be at least 6 characters.' };
     }
 
-    // Async backend call
+    let res = null;
     try {
-      const res = await api.register(userData);
+      res = await api.register(userData);
       if (res && res.token) {
         api.setToken(res.token);
       }
     } catch (err) {
-      console.warn('[Register] Backend registration warning:', err.message);
+      console.error('[Register] Backend registration error:', err.message);
+      const isNetworkErr = err.message && (
+        err.message.includes('fetch') ||
+        err.message.includes('NetworkError') ||
+        err.message.includes('Failed to fetch')
+      );
+      if (isNetworkErr) {
+        return {
+          success: false,
+          message: 'Cannot connect to backend server. Please make sure the backend server is running (run "npm start" in backend folder).'
+        };
+      }
+      return {
+        success: false,
+        message: err.message || 'Registration failed on backend server.'
+      };
     }
 
     setState(prev => {
@@ -160,38 +175,46 @@ export function PortalProvider({ children }) {
       const nextRecruiter = { ...prev.recruiterProfile };
 
       if (role === 'STUDENT') {
-        nextStudent.id = 'STU-' + Date.now().toString().slice(-4);
-        nextStudent.rollNo = '22BCS' + Math.floor(100 + Math.random() * 900);
-        nextStudent.name = name;
-        nextStudent.email = email;
-        if (branch) nextStudent.branch = branch;
-        if (cgpa) nextStudent.cgpa = parseFloat(cgpa);
-        if (!nextStudent.skills || nextStudent.skills.length === 0) {
-          nextStudent.skills = ['JavaScript', 'React', 'Python', 'Data Structures', 'SQL'];
-        }
-        if (!nextStudent.resume || !nextStudent.resume.content) {
-          nextStudent.resume = {
-            fileName: 'Resume_Draft.txt',
-            uploadDate: new Date().toISOString().split('T')[0],
-            atsScore: 78,
-            content: 'Experienced student with skills in JavaScript, React, Python, Data Structures, and SQL.'
-          };
-        }
-        if (!nextStudent.readinessBreakdown || nextStudent.readinessBreakdown.overall === 0) {
-          nextStudent.readinessBreakdown = {
-            overall: 78,
-            technical: 80,
-            aptitude: 75,
-            softSkills: 80,
-            resumeQuality: 78
-          };
+        if (res && res.profile) {
+          Object.assign(nextStudent, res.profile);
+        } else {
+          nextStudent.id = 'STU-' + Date.now().toString().slice(-4);
+          nextStudent.rollNo = '22BCS' + Math.floor(100 + Math.random() * 900);
+          nextStudent.name = name;
+          nextStudent.email = email;
+          if (branch) nextStudent.branch = branch;
+          if (cgpa) nextStudent.cgpa = parseFloat(cgpa);
+          if (!nextStudent.skills || nextStudent.skills.length === 0) {
+            nextStudent.skills = ['JavaScript', 'React', 'Python', 'Data Structures', 'SQL'];
+          }
+          if (!nextStudent.resume || !nextStudent.resume.content) {
+            nextStudent.resume = {
+              fileName: 'Resume_Draft.txt',
+              uploadDate: new Date().toISOString().split('T')[0],
+              atsScore: 78,
+              content: 'Experienced student with skills in JavaScript, React, Python, Data Structures, and SQL.'
+            };
+          }
+          if (!nextStudent.readinessBreakdown || nextStudent.readinessBreakdown.overall === 0) {
+            nextStudent.readinessBreakdown = {
+              overall: 78,
+              technical: 80,
+              aptitude: 75,
+              softSkills: 80,
+              resumeQuality: 78
+            };
+          }
         }
       } else if (role === 'RECRUITER') {
-        nextRecruiter.id = 'REC-' + Date.now().toString().slice(-4);
-        nextRecruiter.companyName = name;
-        nextRecruiter.email = email;
-        nextRecruiter.industry = 'Technology & Software';
-        nextRecruiter.contactPerson = name + ' HR Team';
+        if (res && res.profile) {
+          Object.assign(nextRecruiter, res.profile);
+        } else {
+          nextRecruiter.id = 'REC-' + Date.now().toString().slice(-4);
+          nextRecruiter.companyName = name;
+          nextRecruiter.email = email;
+          nextRecruiter.industry = 'Technology & Software';
+          nextRecruiter.contactPerson = name + ' HR Team';
+        }
       }
 
       return {
@@ -200,7 +223,8 @@ export function PortalProvider({ children }) {
         studentProfile: nextStudent,
         recruiterProfile: nextRecruiter,
         isAuthenticated: true,
-        currentUserRole: role
+        currentUserRole: role,
+        isBackendConnected: true
       };
     });
 

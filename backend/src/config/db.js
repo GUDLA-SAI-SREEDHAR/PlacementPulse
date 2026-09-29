@@ -6,7 +6,7 @@ const connectDB = async () => {
   const connUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/placement_pulse';
   try {
     const conn = await mongoose.connect(connUri, {
-      serverSelectionTimeoutMS: 3000,
+      serverSelectionTimeoutMS: 15000,
     });
     console.log(`[MongoDB] Connected successfully to host: ${conn.connection.host}`);
     return conn;
@@ -20,7 +20,9 @@ const connectDB = async () => {
       process.exit(1);
     }
 
-    console.log(`[MongoDB Fallback] Launching in-memory MongoDB server (mongodb-memory-server)...`);
+    console.warn(`⚠️ [MongoDB WARNING] Falling back to temporary in-memory MongoDB (mongodb-memory-server).`);
+    console.warn(`⚠️ Data created in this session will NOT be saved to your remote MongoDB Atlas database!`);
+    console.log(`[MongoDB Fallback] Launching in-memory MongoDB server...`);
 
     try {
       const { MongoMemoryServer } = require('mongodb-memory-server');

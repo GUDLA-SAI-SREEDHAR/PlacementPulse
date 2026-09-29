@@ -11,17 +11,22 @@ const API_BASE_URL = (() => {
   if (typeof window !== 'undefined' && window.__PLACEMENT_PULSE_API_URL__) {
     return window.__PLACEMENT_PULSE_API_URL__;
   }
-  // 2. Local development
+  // 2. Served directly from backend server (e.g. port 8000)
+  if (typeof window !== 'undefined' && window.location && window.location.port === '8000') {
+    return '/api';
+  }
+  // 3. Local development on separate port (e.g. 8080, 5500, 3000)
   if (typeof window !== 'undefined' && window.location &&
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return 'http://127.0.0.1:8000/api';
+    const host = window.location.hostname;
+    return `http://${host}:8000/api`;
   }
-  // 3. Production: same-origin (single-service deploy) or file:// fallback
+  // 4. Production: same-origin (single-service deploy) or file:// fallback
   if (typeof window !== 'undefined' && window.location &&
       !window.location.origin.startsWith('file:')) {
     return `${window.location.origin}/api`;
   }
-  // 4. Fallback for file:// protocol
+  // 5. Fallback for file:// protocol
   return 'http://127.0.0.1:8000/api';
 })();
 
