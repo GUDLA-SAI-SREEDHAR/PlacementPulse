@@ -1,26 +1,32 @@
 const mongoose = require('mongoose');
 
 let mongoMemoryServer = null;
+let connectionPromise = null;
 
 const connectDB = async () => {
-  if (mongoose.connection && mongoose.connection.readyState >= 1) {
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
     return mongoose.connection;
   }
+  if (connectionPromise && mongoose.connection && mongoose.connection.readyState === 2) {
+    return connectionPromise;
+  }
+
   const connUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/placement_pulse';
   try {
-    const conn = await mongoose.connect(connUri, {
-      serverSelectionTimeoutMS: 15000,
+    connectionPromise = mongoose.connect(connUri, {
+      serverSelectionTimeoutMS: 5000,
     });
+    const conn = await connectionPromise;
     console.log(`[MongoDB] Connected successfully to host: ${conn.connection.host}`);
     return conn;
   } catch (error) {
-    console.error(`[MongoDB Connection Error] ${error.message}`);
-    console.warn(`[MongoDB Warning] Could not connect to MongoDB at ${connUri}`);
+    connectionPromise = null;
+    const maskedUri = connUri ? connUri.replace(/:([^:@]+)@/, ':****@') : 'NONE';
+    console.error(`[MongoDB Connection Error] ${error.message} (URI: ${maskedUri})`);
 
-    // In production, fail fast — do not use in-memory fallback
-    if (process.env.NODE_ENV === 'production') {
-      console.error('[MongoDB] FATAL: Cannot connect to MongoDB in production. Exiting.');
-      process.exit(1);
+    // In serverless (Vercel) or production with remote Atlas URI, throw error immediately
+    if (process.env.NODE_ENV === 'production' || process.env.VERCEL || connUri.includes('mongodb+srv://')) {
+      throw error;
     }
 
     console.warn(`⚠️ [MongoDB WARNING] Falling back to temporary in-memory MongoDB (mongodb-memory-server).`);

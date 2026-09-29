@@ -67,11 +67,26 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(async (req, res, next) => {
+  // Allow health endpoints and root documentation without database
+  if (req.path === '/health' || req.path === '/api/health' || req.path === '/') {
+    return next();
+  }
+
   try {
     await connectDB();
   } catch (err) {
     console.error('[DB Middleware Error]:', err.message);
   }
+
+  // If DB is not connected, fail fast with a descriptive message rather than buffering for 10s
+  const mongoose = require('mongoose');
+  if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      detail: 'Database unavailable. Please verify MONGODB_URI in Vercel Environment Variables and ensure MongoDB Atlas Network Access permits IP 0.0.0.0/0 (Allow from anywhere).',
+      error: 'DATABASE_CONNECTION_FAILED'
+    });
+  }
+
   next();
 });
 app.use(authMiddleware);
