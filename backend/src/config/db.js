@@ -3,6 +3,9 @@ const mongoose = require('mongoose');
 let mongoMemoryServer = null;
 
 const connectDB = async () => {
+  if (mongoose.connection && mongoose.connection.readyState >= 1) {
+    return mongoose.connection;
+  }
   const connUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/placement_pulse';
   try {
     const conn = await mongoose.connect(connUri, {
