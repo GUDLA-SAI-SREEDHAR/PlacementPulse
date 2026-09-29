@@ -42,6 +42,9 @@ const API_BASE_URL = (() => {
 class ApiClient {
   constructor(baseUrl = API_BASE_URL) {
     this.baseUrl = baseUrl;
+    if (typeof window !== 'undefined') {
+      console.log(`[API Client] Active API URL: ${this.baseUrl} | Page Origin: ${window.location.origin}`);
+    }
     try {
       this.token = localStorage.getItem('vpc_jwt_token') || null;
     } catch (e) {
@@ -80,11 +83,22 @@ class ApiClient {
       });
 
       if (!response.ok) {
+        if (response.status === 405) {
+          throw new Error(`HTTP 405 Method Not Allowed on ${url}. The request reached a static hosting server instead of the backend API.`);
+        }
         const errorData = await response.json().catch(() => ({ detail: response.statusText }));
         throw new Error(errorData.detail || errorData.message || `HTTP Error ${response.status}`);
       }
 
-      return await response.json();
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch (parseErr) {
+        if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
+          throw new Error(`Server returned HTML instead of JSON for ${endpoint}. Request hit a static file instead of the API.`);
+        }
+        throw new Error(`Invalid JSON response from ${endpoint}: ${text.slice(0, 100)}`);
+      }
     } catch (err) {
       console.warn(`[API Client] Network or endpoint failure on ${endpoint}:`, err.message);
       throw err;

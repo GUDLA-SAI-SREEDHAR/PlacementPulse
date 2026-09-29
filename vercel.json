@@ -14,8 +14,16 @@
       "destination": "/api/index.js"
     },
     {
+      "source": "/css/(.*)",
+      "destination": "/frontened/css/$1"
+    },
+    {
+      "source": "/js/(.*)",
+      "destination": "/frontened/js/$1"
+    },
+    {
       "source": "/(.*)",
-      "destination": "/frontened/$1"
+      "destination": "/frontened/index.html"
     }
   ],
   "headers": [
