@@ -234,11 +234,20 @@ const API_BASE_URL = (() => {
   if (typeof window !== 'undefined' && window.location && window.location.port === '8000') {
     return '/api';
   }
-  // 3. Local development on separate port (e.g. 8080, 5500, 3000)
-  if (typeof window !== 'undefined' && window.location &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+  // 3. Local development on separate port (localhost, 127.0.0.1, or private LAN IPs 192.168.x.x, 10.x.x.x, 172.x.x.x)
+  if (typeof window !== 'undefined' && window.location && window.location.hostname) {
     const host = window.location.hostname;
-    return `http://${host}:8000/api`;
+    const isLocalDev = (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === '0.0.0.0' ||
+      /^192\.168\./.test(host) ||
+      /^10\./.test(host) ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
+    );
+    if (isLocalDev) {
+      return `http://${host}:8000/api`;
+    }
   }
   // 4. Production: same-origin (single-service deploy) or file:// fallback
   if (typeof window !== 'undefined' && window.location &&

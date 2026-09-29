@@ -12,7 +12,13 @@
       ]
     },
     {
-      "source": "/js/(.*)",
+      "source": "/js/bundle.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/js/lib/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]

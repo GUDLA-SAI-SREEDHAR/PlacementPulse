@@ -35,9 +35,9 @@ app.use(
         return callback(null, true);
       }
 
-      // In non-production, permit any localhost or 127.0.0.1 origin regardless of port
+      // In non-production, permit any localhost, 127.0.0.1, or private LAN IP regardless of port
       if (process.env.NODE_ENV !== 'production') {
-        if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        if (/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/.test(origin)) {
           return callback(null, true);
         }
       }
