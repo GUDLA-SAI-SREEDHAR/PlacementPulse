@@ -42,6 +42,14 @@ app.use(
         }
       }
 
+      // Allow any vercel.app origin (production and preview deployments)
+      try {
+        const originHost = new URL(origin).hostname;
+        if (originHost.endsWith('.vercel.app')) {
+          return callback(null, true);
+        }
+      } catch (e) {}
+
       // Check configured origins or wildcard
       if (
         allowedOrigins.length === 0 ||
@@ -51,7 +59,7 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+      return callback(null, false);
     },
     credentials: true,
   })

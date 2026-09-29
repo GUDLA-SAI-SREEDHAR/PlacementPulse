@@ -225,16 +225,18 @@ const INITIAL_DATA = {
  * before this script loads, or it will auto-detect based on environment.
  */
 
+const PROD_BACKEND_API_URL = 'https://placement-pulse-backend.vercel.app/api';
+
 const API_BASE_URL = (() => {
-  // 1. Explicit override (set in index.html for production)
+  // 1. Explicit override (set in index.html for custom deployments)
   if (typeof window !== 'undefined' && window.__PLACEMENT_PULSE_API_URL__) {
     return window.__PLACEMENT_PULSE_API_URL__;
   }
-  // 2. Served directly from backend server (e.g. port 8000)
+  // 2. Served directly from local backend server (e.g. port 8000)
   if (typeof window !== 'undefined' && window.location && window.location.port === '8000') {
     return '/api';
   }
-  // 3. Local development on separate port (localhost, 127.0.0.1, or private LAN IPs 192.168.x.x, 10.x.x.x, 172.x.x.x)
+  // 3. Local development on separate port (localhost, 127.0.0.1, or private LAN IPs)
   if (typeof window !== 'undefined' && window.location && window.location.hostname) {
     const host = window.location.hostname;
     const isLocalDev = (
@@ -249,13 +251,8 @@ const API_BASE_URL = (() => {
       return `http://${host}:8000/api`;
     }
   }
-  // 4. Production: same-origin (single-service deploy) or file:// fallback
-  if (typeof window !== 'undefined' && window.location &&
-      !window.location.origin.startsWith('file:')) {
-    return `${window.location.origin}/api`;
-  }
-  // 5. Fallback for file:// protocol
-  return 'http://127.0.0.1:8000/api';
+  // 4. Production deployment default: live Vercel backend service
+  return PROD_BACKEND_API_URL;
 })();
 
 class ApiClient {

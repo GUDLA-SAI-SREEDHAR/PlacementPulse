@@ -1,5 +1,8 @@
 {
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://placement-pulse-backend.vercel.app/api/$1" },
+    { "source": "/api", "destination": "https://placement-pulse-backend.vercel.app/api" },
+    { "source": "/health", "destination": "https://placement-pulse-backend.vercel.app/health" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
