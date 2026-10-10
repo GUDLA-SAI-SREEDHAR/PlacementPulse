@@ -1385,3 +1385,75 @@ textarea:focus {
   position: relative;
   z-index: 10;
 }
+
+/* Admin Pending Approvals & Alert Styling */
+.pending-alert-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(234, 88, 12, 0.15));
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 10px;
+  padding: 14px 20px;
+  margin-bottom: 20px;
+}
+
+.pending-alert-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pending-alert-icon {
+  font-size: 24px;
+}
+
+.pending-alert-title {
+  margin: 0;
+  font-size: 15px;
+  color: #f59e0b;
+}
+
+.pending-alert-desc {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.page-title-bar-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pending-approvals-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.pending-card-highlight {
+  border-left: 4px solid var(--warning, #f59e0b) !important;
+}
+
+.card-empty-approvals {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px dashed rgba(16, 185, 129, 0.3);
+  text-align: center;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 8px;
+}
+
+.card-empty-approvals p {
+  margin: 0;
+  font-size: 14px;
+  color: #10b981;
+}
+
+.company-subtext {
+  font-size: 13px;
+  color: var(--text-muted, #94a3b8);
+  font-weight: 600;
+}

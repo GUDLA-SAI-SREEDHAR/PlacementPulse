@@ -3455,8 +3455,9 @@ function RecruiterView() {
 
 function AdminView() {
   const { state, verifyStudent, approveJob, broadcastNotification, refreshBackendData } = usePortal();
+  const studentsList = state.studentsList || [];
   const pendingJobs = (state.jobs || []).filter(j => j.status === 'PENDING');
-  const pendingStudents = (state.studentsList || []).filter(s => s.status === 'PENDING');
+  const pendingStudents = studentsList.filter(s => s.status === 'PENDING');
   const analytics = state.analytics || {
     placementRate: 85,
     avgPackage: '11.8 LPA',
@@ -3535,15 +3536,15 @@ function AdminView() {
             </div>
 
             ${pendingJobs.length > 0 && html`
-              <div className="pending-alert-banner mb-4" style="display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(234, 88, 12, 0.15)); border:1px solid rgba(245, 158, 11, 0.4); border-radius:10px; padding:14px 20px; margin-bottom:20px;">
-                <div style="display:flex; align-items:center; gap:12px;">
-                  <span style="font-size:24px;">⚡</span>
+              <div className="pending-alert-banner mb-4">
+                <div className="pending-alert-left">
+                  <span className="pending-alert-icon">⚡</span>
                   <div>
-                    <h4 style="margin:0; font-size:15px; color:#f59e0b;">Action Required: ${pendingJobs.length} Job Posting${pendingJobs.length > 1 ? 's' : ''} Awaiting Approval</h4>
-                    <p style="margin:3px 0 0; font-size:13px; color:var(--text-muted, #94a3b8);">Recruiters submitted new job opportunities that need your approval before students can see them.</p>
+                    <h4 className="pending-alert-title">Action Required: ${pendingJobs.length} Job Posting${pendingJobs.length > 1 ? 's' : ''} Awaiting Approval</h4>
+                    <p className="pending-alert-desc">Recruiters submitted new job opportunities that need your approval before students can see them.</p>
                   </div>
                 </div>
-                <button className="btn btn-warning btn-sm" onClick=${() => setActiveTab('job_approvals')} style="white-space:nowrap;">
+                <button className="btn btn-warning btn-sm" onClick=${() => setActiveTab('job_approvals')}>
                   Review Approvals (${pendingJobs.length}) ➔
                 </button>
               </div>
@@ -3591,7 +3592,7 @@ function AdminView() {
 
             <div className="card">
               <div className="card-header">
-                <h3>Registered Students Directory (${state.studentsList.length})</h3>
+                <h3>Registered Students Directory (${studentsList.length})</h3>
               </div>
               <div className="card-body">
                 <div className="table-responsive">
@@ -3606,7 +3607,7 @@ function AdminView() {
                       </tr>
                     </thead>
                     <tbody>
-                      ${state.studentsList.map(s => html`
+                      ${studentsList.map(s => html`
                         <tr key=${s.id}>
                           <td><strong>${s.rollNo}</strong></td>
                           <td>${s.name}</td>
@@ -3652,7 +3653,7 @@ function AdminView() {
                       </tr>
                     </thead>
                     <tbody>
-                      ${state.studentsList.map(s => html`
+                      ${studentsList.map(s => html`
                         <tr key=${s.id}>
                           <td><strong>${s.rollNo}</strong></td>
                           <td>${s.name}</td>
@@ -3726,10 +3727,10 @@ function AdminView() {
 
         return html`
           <div className="tab-pane animate-fade-in">
-            <div className="page-title-bar" style="display:flex; justify-content:space-between; align-items:center;">
+            <div className="page-title-bar page-title-bar-flex">
               <div>
                 <h2>Approve Job Posts</h2>
-                <p className="text-muted" style="margin:4px 0 0; font-size:13px;">Review and authorize recruiter job opportunities before publishing to students</p>
+                <p className="text-muted">Review and authorize recruiter job opportunities before publishing to students</p>
               </div>
               <button className="btn btn-outline btn-sm" onClick=${handleRefreshJobs} title="Fetch latest jobs from backend">
                 🔄 Sync & Refresh
@@ -3737,25 +3738,25 @@ function AdminView() {
             </div>
 
             <div className="pending-approvals-wrapper mb-4">
-              <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                <h3 style="margin:0; font-size:16px;">⚡ Pending Review (${pendingList.length})</h3>
+              <div className="pending-approvals-header">
+                <h3>⚡ Pending Review (${pendingList.length})</h3>
                 <span className=${`badge ${pendingList.length > 0 ? 'badge-warning' : 'badge-success'}`}>
                   ${pendingList.length > 0 ? `${pendingList.length} Action Needed` : 'All Caught Up ✓'}
                 </span>
               </div>
 
               ${pendingList.length === 0 ? html`
-                <div className="card p-3 mb-4 text-center" style="background: rgba(16, 185, 129, 0.08); border: 1px dashed rgba(16, 185, 129, 0.3);">
-                  <p style="margin:0; font-size:14px; color:#10b981;">✓ All job postings are currently approved or reviewed. No pending approvals.</p>
+                <div className="card-empty-approvals">
+                  <p>✓ All job postings are currently approved or reviewed. No pending approvals.</p>
                 </div>
               ` : html`
                 <div className="jobs-approval-grid mb-4">
                   ${pendingList.map(job => html`
-                    <div key=${job.id || job._id} className="card mb-3" style="border-left: 4px solid var(--warning, #f59e0b);">
+                    <div key=${job.id || job._id} className="card mb-3 pending-card-highlight">
                       <div className="card-header">
                         <div>
-                          <h3 style="margin:0;">${job.title}</h3>
-                          <span style="font-size:13px; color:var(--text-muted, #94a3b8); font-weight:600;">🏢 ${job.companyName}</span>
+                          <h3>${job.title}</h3>
+                          <span className="company-subtext">🏢 ${job.companyName}</span>
                         </div>
                         <span className="status-badge pending">PENDING REVIEW</span>
                       </div>
@@ -3774,14 +3775,14 @@ function AdminView() {
             </div>
 
             <div className="all-jobs-wrapper">
-              <h3 style="margin:0 0 12px; font-size:16px;">📋 Live & Archived Job Drives (${approvedList.length})</h3>
+              <h3>📋 Live & Archived Job Drives (${approvedList.length})</h3>
               <div className="jobs-approval-grid">
                 ${approvedList.map(job => html`
-                  <div key=${job.id || job._id} className="card mb-3" style="opacity: 0.95;">
+                  <div key=${job.id || job._id} className="card mb-3">
                     <div className="card-header">
                       <div>
-                        <h3 style="margin:0;">${job.title}</h3>
-                        <span style="font-size:13px; color:var(--text-muted, #94a3b8);">🏢 ${job.companyName}</span>
+                        <h3>${job.title}</h3>
+                        <span className="text-muted">🏢 ${job.companyName}</span>
                       </div>
                       <span className=${`status-badge ${job.status.toLowerCase()}`}>${job.status}</span>
                     </div>
@@ -3903,7 +3904,7 @@ function AdminView() {
             <span className="tab-icon">📊</span> Placement Analytics
           </button>
           <button className=${`nav-tab-btn ${activeTab === 'students' ? 'active' : ''}`} onClick=${() => setActiveTab('students')}>
-            <span className="tab-icon">🎓</span> Manage Students (${state.studentsList.length})
+            <span className="tab-icon">🎓</span> Manage Students (${studentsList.length})
           </button>
           <button className=${`nav-tab-btn ${activeTab === 'verify_students' ? 'active' : ''}`} onClick=${() => setActiveTab('verify_students')}>
             <span className="tab-icon">🔍</span> Verify Students (${pendingStudents.length})
