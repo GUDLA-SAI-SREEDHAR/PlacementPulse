@@ -20,8 +20,14 @@
   <!-- React Root Container -->
   <div id="app"></div>
 
-  <!-- Production API Configuration -->
-  <script>window.__PLACEMENT_PULSE_API_URL__ = 'https://placement-pulse-backend.vercel.app/api';</script>
+  <!-- API Configuration: automatically connects to local backend when run locally -->
+  <script>
+    if (!window.location.hostname || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:') {
+      window.__PLACEMENT_PULSE_API_URL__ = 'http://127.0.0.1:8000/api';
+    } else {
+      window.__PLACEMENT_PULSE_API_URL__ = 'https://placement-pulse-backend.vercel.app/api';
+    }
+  </script>
 
   <!-- React 18 & HTM Standalone Libraries (Local fallback for offline double-click support) -->
   <script src="js/lib/react.min.js"></script>
