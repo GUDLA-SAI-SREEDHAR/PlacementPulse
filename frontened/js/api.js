@@ -102,9 +102,26 @@ class ApiClient {
     }
   }
 
-  // --- Health Check ---
+  // --- Health Check with Automatic Cloud Fallback ---
   async checkHealth() {
-    return this.request('/health');
+    try {
+      return await this.request('/health');
+    } catch (err) {
+      if (this.baseUrl !== PROD_BACKEND_API_URL) {
+        try {
+          const res = await fetch(`${PROD_BACKEND_API_URL}/health`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && (data.status === 'ok' || data.status === 'healthy')) {
+              console.log(`[API Client] Switched to Cloud Backend API: ${PROD_BACKEND_API_URL}`);
+              this.baseUrl = PROD_BACKEND_API_URL;
+              return data;
+            }
+          }
+        } catch (cloudErr) {}
+      }
+      throw err;
+    }
   }
 
   // --- Auth ---

@@ -30,44 +30,41 @@ export function PortalProvider({ children }) {
   }, [state]);
 
   // Sync state with backend REST API if server is reachable
-  useEffect(() => {
-    let isMounted = true;
-    async function syncBackendData() {
-      try {
-        const health = await api.checkHealth();
-        if (health && (health.status === 'ok' || health.status === 'healthy') && isMounted) {
-          console.log('[PortalContext] Connected to PlacementPulse REST API Backend!');
-          
-          const [jobs, applications, notifications, analytics, studentProfile, experiences] = await Promise.all([
-            api.listJobs().catch(() => null),
-            api.listApplications().catch(() => null),
-            api.getNotifications().catch(() => null),
-            api.getAnalyticsDashboard().catch(() => null),
-            api.getStudentProfile().catch(() => null),
-            api.listExperiences().catch(() => null)
-          ]);
+  const syncBackendData = async () => {
+    try {
+      const health = await api.checkHealth();
+      if (health && (health.status === 'ok' || health.status === 'healthy')) {
+        console.log('[PortalContext] Connected to PlacementPulse REST API Backend!');
+        
+        const [jobs, applications, notifications, analytics, studentProfile, experiences] = await Promise.all([
+          api.listJobs().catch(() => null),
+          api.listApplications().catch(() => null),
+          api.getNotifications().catch(() => null),
+          api.getAnalyticsDashboard().catch(() => null),
+          api.getStudentProfile().catch(() => null),
+          api.listExperiences().catch(() => null)
+        ]);
 
-          if (isMounted) {
-            setState(prev => ({
-              ...prev,
-              isBackendConnected: true,
-              ...(jobs ? { jobs } : {}),
-              ...(applications ? { applications } : {}),
-              ...(notifications ? { notifications } : {}),
-              ...(analytics ? { analytics } : {}),
-              ...(studentProfile ? { studentProfile } : {}),
-              ...(experiences ? { interviewExperiences: experiences } : {})
-            }));
-          }
-        }
-      } catch (err) {
-        if (isMounted) {
-          console.info('[PortalContext] Running in offline/standalone mode (Backend server not connected yet).');
-          setState(prev => ({ ...prev, isBackendConnected: false }));
-        }
+        setState(prev => ({
+          ...prev,
+          isBackendConnected: true,
+          ...(jobs && Array.isArray(jobs) ? { jobs } : {}),
+          ...(applications && Array.isArray(applications) ? { applications } : {}),
+          ...(notifications && Array.isArray(notifications) ? { notifications } : {}),
+          ...(analytics ? { analytics } : {}),
+          ...(studentProfile ? { studentProfile } : {}),
+          ...(experiences && Array.isArray(experiences) ? { interviewExperiences: experiences } : {})
+        }));
+        return true;
       }
+    } catch (err) {
+      console.info('[PortalContext] Running in offline/standalone mode (Backend server not connected yet).');
+      setState(prev => ({ ...prev, isBackendConnected: false }));
     }
+    return false;
+  };
 
+  useEffect(() => {
     syncBackendData();
   }, []);
 
@@ -101,6 +98,8 @@ export function PortalProvider({ children }) {
           isBackendConnected: true,
           ...(res.profile ? (role === 'STUDENT' ? { studentProfile: res.profile } : { recruiterProfile: res.profile }) : {})
         }));
+        // Refresh all portal data from backend for the logged-in user
+        setTimeout(() => syncBackendData(), 50);
         return { success: true, message: 'Login successful via Backend API!' };
       }
     } catch (err) {
@@ -382,27 +381,30 @@ export function PortalProvider({ children }) {
   };
 
   const postNewJob = async (jobData) => {
+    const recruiterId = jobData.recruiterId || state.recruiterProfile?.id || (state.currentUserRole === 'RECRUITER' ? 501 : 'REC-01');
+    const companyName = jobData.companyName || state.recruiterProfile?.companyName || (state.currentUserRole === 'RECRUITER' ? 'Nexus AI Tech' : 'Campus Partner');
+
+    const enrichedJobData = {
+      recruiterId,
+      companyName,
+      ...jobData
+    };
+
+    let backendJob = null;
     try {
-      const res = await api.postJob(jobData);
-      if (res && res.job) {
-        setState(prev => ({
-          ...prev,
-          jobs: [res.job, ...prev.jobs]
-        }));
-        return res.job;
+      const res = await api.postJob(enrichedJobData);
+      if (res && (res.job || res.id)) {
+        backendJob = res.job || res;
       }
     } catch (err) {
       console.warn('[PostJob] Backend job posting warning:', err.message);
     }
 
-    const recruiterId = state.recruiterProfile?.id || 'REC-01';
-    const companyName = state.recruiterProfile?.companyName || 'Recruiter Corp';
-
-    const newJob = {
-      id: `JOB-${new Date().getFullYear()}-${(state.jobs.length + 1).toString().padStart(2, '0')}`,
+    const newJob = backendJob || {
+      id: `JOB-${new Date().getFullYear()}-${((state.jobs || []).length + 1).toString().padStart(2, '0')}`,
       recruiterId,
       companyName,
-      ...jobData,
+      ...enrichedJobData,
       status: 'PENDING',
       postedDate: new Date().toISOString().split('T')[0]
     };
@@ -410,17 +412,20 @@ export function PortalProvider({ children }) {
     const newNotif = {
       id: `NOTIF-${Date.now()}`,
       title: 'New Job Pending Approval',
-      message: `Recruiter ${companyName} submitted a job: ${jobData.title}`,
+      message: `Recruiter ${newJob.companyName || companyName} submitted a job: ${newJob.title}`,
       type: 'JOB',
       date: new Date().toISOString().replace('T', ' ').slice(0, 16),
       isRead: false
     };
 
-    setState(prev => ({
-      ...prev,
-      jobs: [newJob, ...prev.jobs],
-      notifications: [newNotif, ...prev.notifications]
-    }));
+    setState(prev => {
+      const remainingJobs = (prev.jobs || []).filter(j => j.id !== newJob.id && j._id !== newJob._id);
+      return {
+        ...prev,
+        jobs: [newJob, ...remainingJobs],
+        notifications: [newNotif, ...(prev.notifications || [])]
+      };
+    });
 
     return newJob;
   };
@@ -521,7 +526,8 @@ export function PortalProvider({ children }) {
     addInterviewExperience,
     markAllNotificationsRead,
     broadcastNotification,
-    resetDemoData
+    resetDemoData,
+    refreshBackendData: syncBackendData
   };
 
   return html`<${PortalContext.Provider} value=${value}>${children}<//>`;

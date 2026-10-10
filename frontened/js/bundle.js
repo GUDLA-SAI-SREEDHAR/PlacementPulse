@@ -321,9 +321,26 @@ class ApiClient {
     }
   }
 
-  // --- Health Check ---
+  // --- Health Check with Automatic Cloud Fallback ---
   async checkHealth() {
-    return this.request('/health');
+    try {
+      return await this.request('/health');
+    } catch (err) {
+      if (this.baseUrl !== PROD_BACKEND_API_URL) {
+        try {
+          const res = await fetch(`${PROD_BACKEND_API_URL}/health`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && (data.status === 'ok' || data.status === 'healthy')) {
+              console.log(`[API Client] Switched to Cloud Backend API: ${PROD_BACKEND_API_URL}`);
+              this.baseUrl = PROD_BACKEND_API_URL;
+              return data;
+            }
+          }
+        } catch (cloudErr) {}
+      }
+      throw err;
+    }
   }
 
   // --- Auth ---
@@ -856,44 +873,41 @@ function PortalProvider({ children }) {
   }, [state]);
 
   // Sync state with backend REST API if server is reachable
-  useEffect(() => {
-    let isMounted = true;
-    async function syncBackendData() {
-      try {
-        const health = await api.checkHealth();
-        if (health && (health.status === 'ok' || health.status === 'healthy') && isMounted) {
-          console.log('[PortalContext] Connected to PlacementPulse REST API Backend!');
-          
-          const [jobs, applications, notifications, analytics, studentProfile, experiences] = await Promise.all([
-            api.listJobs().catch(() => null),
-            api.listApplications().catch(() => null),
-            api.getNotifications().catch(() => null),
-            api.getAnalyticsDashboard().catch(() => null),
-            api.getStudentProfile().catch(() => null),
-            api.listExperiences().catch(() => null)
-          ]);
+  const syncBackendData = async () => {
+    try {
+      const health = await api.checkHealth();
+      if (health && (health.status === 'ok' || health.status === 'healthy')) {
+        console.log('[PortalContext] Connected to PlacementPulse REST API Backend!');
+        
+        const [jobs, applications, notifications, analytics, studentProfile, experiences] = await Promise.all([
+          api.listJobs().catch(() => null),
+          api.listApplications().catch(() => null),
+          api.getNotifications().catch(() => null),
+          api.getAnalyticsDashboard().catch(() => null),
+          api.getStudentProfile().catch(() => null),
+          api.listExperiences().catch(() => null)
+        ]);
 
-          if (isMounted) {
-            setState(prev => ({
-              ...prev,
-              isBackendConnected: true,
-              ...(jobs ? { jobs } : {}),
-              ...(applications ? { applications } : {}),
-              ...(notifications ? { notifications } : {}),
-              ...(analytics ? { analytics } : {}),
-              ...(studentProfile ? { studentProfile } : {}),
-              ...(experiences ? { interviewExperiences: experiences } : {})
-            }));
-          }
-        }
-      } catch (err) {
-        if (isMounted) {
-          console.info('[PortalContext] Running in offline/standalone mode (Backend server not connected yet).');
-          setState(prev => ({ ...prev, isBackendConnected: false }));
-        }
+        setState(prev => ({
+          ...prev,
+          isBackendConnected: true,
+          ...(jobs && Array.isArray(jobs) ? { jobs } : {}),
+          ...(applications && Array.isArray(applications) ? { applications } : {}),
+          ...(notifications && Array.isArray(notifications) ? { notifications } : {}),
+          ...(analytics ? { analytics } : {}),
+          ...(studentProfile ? { studentProfile } : {}),
+          ...(experiences && Array.isArray(experiences) ? { interviewExperiences: experiences } : {})
+        }));
+        return true;
       }
+    } catch (err) {
+      console.info('[PortalContext] Running in offline/standalone mode (Backend server not connected yet).');
+      setState(prev => ({ ...prev, isBackendConnected: false }));
     }
+    return false;
+  };
 
+  useEffect(() => {
     syncBackendData();
   }, []);
 
@@ -927,6 +941,8 @@ function PortalProvider({ children }) {
           isBackendConnected: true,
           ...(res.profile ? (role === 'STUDENT' ? { studentProfile: res.profile } : { recruiterProfile: res.profile }) : {})
         }));
+        // Refresh all portal data from backend for the logged-in user
+        setTimeout(() => syncBackendData(), 50);
         return { success: true, message: 'Login successful via Backend API!' };
       }
     } catch (err) {
@@ -1208,27 +1224,30 @@ function PortalProvider({ children }) {
   };
 
   const postNewJob = async (jobData) => {
+    const recruiterId = jobData.recruiterId || state.recruiterProfile?.id || (state.currentUserRole === 'RECRUITER' ? 501 : 'REC-01');
+    const companyName = jobData.companyName || state.recruiterProfile?.companyName || (state.currentUserRole === 'RECRUITER' ? 'Nexus AI Tech' : 'Campus Partner');
+
+    const enrichedJobData = {
+      recruiterId,
+      companyName,
+      ...jobData
+    };
+
+    let backendJob = null;
     try {
-      const res = await api.postJob(jobData);
-      if (res && res.job) {
-        setState(prev => ({
-          ...prev,
-          jobs: [res.job, ...prev.jobs]
-        }));
-        return res.job;
+      const res = await api.postJob(enrichedJobData);
+      if (res && (res.job || res.id)) {
+        backendJob = res.job || res;
       }
     } catch (err) {
       console.warn('[PostJob] Backend job posting warning:', err.message);
     }
 
-    const recruiterId = state.recruiterProfile?.id || 'REC-01';
-    const companyName = state.recruiterProfile?.companyName || 'Recruiter Corp';
-
-    const newJob = {
-      id: `JOB-${new Date().getFullYear()}-${(state.jobs.length + 1).toString().padStart(2, '0')}`,
+    const newJob = backendJob || {
+      id: `JOB-${new Date().getFullYear()}-${((state.jobs || []).length + 1).toString().padStart(2, '0')}`,
       recruiterId,
       companyName,
-      ...jobData,
+      ...enrichedJobData,
       status: 'PENDING',
       postedDate: new Date().toISOString().split('T')[0]
     };
@@ -1236,17 +1255,20 @@ function PortalProvider({ children }) {
     const newNotif = {
       id: `NOTIF-${Date.now()}`,
       title: 'New Job Pending Approval',
-      message: `Recruiter ${companyName} submitted a job: ${jobData.title}`,
+      message: `Recruiter ${newJob.companyName || companyName} submitted a job: ${newJob.title}`,
       type: 'JOB',
       date: new Date().toISOString().replace('T', ' ').slice(0, 16),
       isRead: false
     };
 
-    setState(prev => ({
-      ...prev,
-      jobs: [newJob, ...prev.jobs],
-      notifications: [newNotif, ...prev.notifications]
-    }));
+    setState(prev => {
+      const remainingJobs = (prev.jobs || []).filter(j => j.id !== newJob.id && j._id !== newJob._id);
+      return {
+        ...prev,
+        jobs: [newJob, ...remainingJobs],
+        notifications: [newNotif, ...(prev.notifications || [])]
+      };
+    });
 
     return newJob;
   };
@@ -1347,7 +1369,8 @@ function PortalProvider({ children }) {
     addInterviewExperience,
     markAllNotificationsRead,
     broadcastNotification,
-    resetDemoData
+    resetDemoData,
+    refreshBackendData: syncBackendData
   };
 
   return html`<${PortalContext.Provider} value=${value}>${children}<//>`;
@@ -2144,7 +2167,7 @@ function CompanyProfile({ recruiter = {} }) {
 
 
 
-function JobPostingManager({ myJobs = [], onPostJob }) {
+function JobPostingManager({ myJobs = [], recruiter = null, onPostJob }) {
   const [jobTitle, setJobTitle] = useState('');
   const [jobCtc, setJobCtc] = useState('');
   const [jobLocation, setJobLocation] = useState('');
@@ -2158,6 +2181,8 @@ function JobPostingManager({ myJobs = [], onPostJob }) {
     try {
       await onPostJob({
         title: jobTitle,
+        companyName: recruiter?.companyName || 'Campus Partner',
+        recruiterId: recruiter?.id || 501,
         ctc: jobCtc,
         location: jobLocation,
         minCgpa: parseFloat(jobMinCgpa) || 6.0,
@@ -2166,7 +2191,7 @@ function JobPostingManager({ myJobs = [], onPostJob }) {
         description: jobDesc,
         eligibleBranches: ['Computer Science & Engineering', 'Information Technology']
       });
-      alert('Job opening posted successfully!');
+      alert('Job opening posted successfully! It is now pending placement officer approval.');
       setJobTitle('');
       setJobCtc('');
       setJobLocation('');
@@ -3349,6 +3374,7 @@ function RecruiterView() {
       case 'jobs':
         return html`<${JobPostingManager} 
           myJobs=${myJobs} 
+          recruiter=${recruiter}
           onPostJob=${postNewJob} 
         />`;
 
@@ -3428,7 +3454,7 @@ function RecruiterView() {
 
 
 function AdminView() {
-  const { state, verifyStudent, approveJob, broadcastNotification } = usePortal();
+  const { state, verifyStudent, approveJob, broadcastNotification, refreshBackendData } = usePortal();
   const pendingJobs = (state.jobs || []).filter(j => j.status === 'PENDING');
   const pendingStudents = (state.studentsList || []).filter(s => s.status === 'PENDING');
   const analytics = state.analytics || {
@@ -3441,6 +3467,24 @@ function AdminView() {
   const recruiter = state.recruiterProfile;
 
   const [activeTab, setActiveTab] = useState('analytics');
+
+  // Automatically refresh latest job listings from backend when viewing job approvals
+  useEffect(() => {
+    if (activeTab === 'job_approvals' && refreshBackendData) {
+      refreshBackendData();
+    }
+  }, [activeTab]);
+
+  const handleRefreshJobs = async () => {
+    if (refreshBackendData) {
+      const ok = await refreshBackendData();
+      if (ok) {
+        alert('Job listings refreshed from backend!');
+      } else {
+        alert('Portal is running in offline/local storage mode.');
+      }
+    }
+  };
 
   // Broadcast Notification Form State
   const [bcastTitle, setBcastTitle] = useState('');
@@ -3489,6 +3533,21 @@ function AdminView() {
             <div className="page-title-bar">
               <h2>University Placement Analytics Dashboard</h2>
             </div>
+
+            ${pendingJobs.length > 0 && html`
+              <div className="pending-alert-banner mb-4" style="display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(234, 88, 12, 0.15)); border:1px solid rgba(245, 158, 11, 0.4); border-radius:10px; padding:14px 20px; margin-bottom:20px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <span style="font-size:24px;">⚡</span>
+                  <div>
+                    <h4 style="margin:0; font-size:15px; color:#f59e0b;">Action Required: ${pendingJobs.length} Job Posting${pendingJobs.length > 1 ? 's' : ''} Awaiting Approval</h4>
+                    <p style="margin:3px 0 0; font-size:13px; color:var(--text-muted, #94a3b8);">Recruiters submitted new job opportunities that need your approval before students can see them.</p>
+                  </div>
+                </div>
+                <button className="btn btn-warning btn-sm" onClick=${() => setActiveTab('job_approvals')} style="white-space:nowrap;">
+                  Review Approvals (${pendingJobs.length}) ➔
+                </button>
+              </div>
+            `}
 
             <div className="metrics-grid">
               <div className="metric-card">
@@ -3662,31 +3721,80 @@ function AdminView() {
         `;
 
       case 'job_approvals':
+        const pendingList = (state.jobs || []).filter(j => j.status === 'PENDING');
+        const approvedList = (state.jobs || []).filter(j => j.status !== 'PENDING');
+
         return html`
           <div className="tab-pane animate-fade-in">
-            <div className="page-title-bar">
-              <h2>Approve Job Posts</h2>
+            <div className="page-title-bar" style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <h2>Approve Job Posts</h2>
+                <p className="text-muted" style="margin:4px 0 0; font-size:13px;">Review and authorize recruiter job opportunities before publishing to students</p>
+              </div>
+              <button className="btn btn-outline btn-sm" onClick=${handleRefreshJobs} title="Fetch latest jobs from backend">
+                🔄 Sync & Refresh
+              </button>
             </div>
 
-            <div className="jobs-approval-grid">
-              ${state.jobs.map(job => html`
-                <div key=${job.id} className="card mb-3">
-                  <div className="card-header">
-                    <h3>${job.title} - ${job.companyName}</h3>
-                    <span className=${`status-badge ${job.status.toLowerCase()}`}>${job.status}</span>
-                  </div>
-                  <div className="card-body">
-                    <p>💰 CTC: <strong>${job.ctc}</strong> | Min CGPA: ${job.minCgpa}</p>
-                    <p className="text-muted mt-1">${job.description}</p>
-                    <div className="form-actions mt-3">
-                      ${job.status === 'PENDING' ? html`
-                        <button className="btn btn-success" onClick=${() => handleApproveJob(job.id, 'APPROVED')}>Approve Job Post ✓</button>
-                        <button className="btn btn-danger" onClick=${() => handleApproveJob(job.id, 'REJECTED')}>Reject ✗</button>
-                      ` : html`<span className="text-muted">Approved & Live</span>`}
+            <div className="pending-approvals-wrapper mb-4">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <h3 style="margin:0; font-size:16px;">⚡ Pending Review (${pendingList.length})</h3>
+                <span className=${`badge ${pendingList.length > 0 ? 'badge-warning' : 'badge-success'}`}>
+                  ${pendingList.length > 0 ? `${pendingList.length} Action Needed` : 'All Caught Up ✓'}
+                </span>
+              </div>
+
+              ${pendingList.length === 0 ? html`
+                <div className="card p-3 mb-4 text-center" style="background: rgba(16, 185, 129, 0.08); border: 1px dashed rgba(16, 185, 129, 0.3);">
+                  <p style="margin:0; font-size:14px; color:#10b981;">✓ All job postings are currently approved or reviewed. No pending approvals.</p>
+                </div>
+              ` : html`
+                <div className="jobs-approval-grid mb-4">
+                  ${pendingList.map(job => html`
+                    <div key=${job.id || job._id} className="card mb-3" style="border-left: 4px solid var(--warning, #f59e0b);">
+                      <div className="card-header">
+                        <div>
+                          <h3 style="margin:0;">${job.title}</h3>
+                          <span style="font-size:13px; color:var(--text-muted, #94a3b8); font-weight:600;">🏢 ${job.companyName}</span>
+                        </div>
+                        <span className="status-badge pending">PENDING REVIEW</span>
+                      </div>
+                      <div className="card-body">
+                        <p>💰 Package CTC: <strong>${job.ctc}</strong> | 🎓 Min CGPA: <strong>${job.minCgpa}</strong> | 📍 Location: <strong>${job.location || 'Hybrid'}</strong></p>
+                        <p className="text-muted mt-1">${job.description}</p>
+                        <div className="form-actions mt-3">
+                          <button className="btn btn-success" onClick=${() => handleApproveJob(job.id, 'APPROVED')}>Approve Job Post ✓</button>
+                          <button className="btn btn-danger" onClick=${() => handleApproveJob(job.id, 'REJECTED')}>Reject ✗</button>
+                        </div>
+                      </div>
+                    </div>
+                  `)}
+                </div>
+              `}
+            </div>
+
+            <div className="all-jobs-wrapper">
+              <h3 style="margin:0 0 12px; font-size:16px;">📋 Live & Archived Job Drives (${approvedList.length})</h3>
+              <div className="jobs-approval-grid">
+                ${approvedList.map(job => html`
+                  <div key=${job.id || job._id} className="card mb-3" style="opacity: 0.95;">
+                    <div className="card-header">
+                      <div>
+                        <h3 style="margin:0;">${job.title}</h3>
+                        <span style="font-size:13px; color:var(--text-muted, #94a3b8);">🏢 ${job.companyName}</span>
+                      </div>
+                      <span className=${`status-badge ${job.status.toLowerCase()}`}>${job.status}</span>
+                    </div>
+                    <div className="card-body">
+                      <p>💰 CTC: <strong>${job.ctc}</strong> | Min CGPA: ${job.minCgpa}</p>
+                      <p className="text-muted mt-1">${job.description}</p>
+                      <div className="form-actions mt-3">
+                        <span className="text-muted">Status: ${job.status} ✓</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              `)}
+                `)}
+              </div>
             </div>
           </div>
         `;

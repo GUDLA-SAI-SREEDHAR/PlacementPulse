@@ -3,7 +3,7 @@ import htm from 'https://esm.sh/htm';
 
 const html = htm.bind(React.createElement);
 
-export function JobPostingManager({ myJobs = [], onPostJob }) {
+export function JobPostingManager({ myJobs = [], recruiter = null, onPostJob }) {
   const [jobTitle, setJobTitle] = useState('');
   const [jobCtc, setJobCtc] = useState('');
   const [jobLocation, setJobLocation] = useState('');
@@ -17,6 +17,8 @@ export function JobPostingManager({ myJobs = [], onPostJob }) {
     try {
       await onPostJob({
         title: jobTitle,
+        companyName: recruiter?.companyName || 'Campus Partner',
+        recruiterId: recruiter?.id || 501,
         ctc: jobCtc,
         location: jobLocation,
         minCgpa: parseFloat(jobMinCgpa) || 6.0,
@@ -25,7 +27,7 @@ export function JobPostingManager({ myJobs = [], onPostJob }) {
         description: jobDesc,
         eligibleBranches: ['Computer Science & Engineering', 'Information Technology']
       });
-      alert('Job opening posted successfully!');
+      alert('Job opening posted successfully! It is now pending placement officer approval.');
       setJobTitle('');
       setJobCtc('');
       setJobLocation('');

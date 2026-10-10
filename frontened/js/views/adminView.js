@@ -1,4 +1,4 @@
-import React, { useState } from 'https://esm.sh/react@18';
+import React, { useState, useEffect } from 'https://esm.sh/react@18';
 import htm from 'https://esm.sh/htm';
 import { usePortal } from '../context/PortalContext.js';
 import { AnalyticsCharts } from '../components/admin/AnalyticsCharts.js';
@@ -6,7 +6,7 @@ import { AnalyticsCharts } from '../components/admin/AnalyticsCharts.js';
 const html = htm.bind(React.createElement);
 
 export function AdminView() {
-  const { state, verifyStudent, approveJob, broadcastNotification } = usePortal();
+  const { state, verifyStudent, approveJob, broadcastNotification, refreshBackendData } = usePortal();
   const pendingJobs = (state.jobs || []).filter(j => j.status === 'PENDING');
   const pendingStudents = (state.studentsList || []).filter(s => s.status === 'PENDING');
   const analytics = state.analytics || {
@@ -19,6 +19,24 @@ export function AdminView() {
   const recruiter = state.recruiterProfile;
 
   const [activeTab, setActiveTab] = useState('analytics');
+
+  // Automatically refresh latest job listings from backend when viewing job approvals
+  useEffect(() => {
+    if (activeTab === 'job_approvals' && refreshBackendData) {
+      refreshBackendData();
+    }
+  }, [activeTab]);
+
+  const handleRefreshJobs = async () => {
+    if (refreshBackendData) {
+      const ok = await refreshBackendData();
+      if (ok) {
+        alert('Job listings refreshed from backend!');
+      } else {
+        alert('Portal is running in offline/local storage mode.');
+      }
+    }
+  };
 
   // Broadcast Notification Form State
   const [bcastTitle, setBcastTitle] = useState('');
@@ -67,6 +85,21 @@ export function AdminView() {
             <div className="page-title-bar">
               <h2>University Placement Analytics Dashboard</h2>
             </div>
+
+            ${pendingJobs.length > 0 && html`
+              <div className="pending-alert-banner mb-4" style="display:flex; justify-content:space-between; align-items:center; background:linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(234, 88, 12, 0.15)); border:1px solid rgba(245, 158, 11, 0.4); border-radius:10px; padding:14px 20px; margin-bottom:20px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <span style="font-size:24px;">⚡</span>
+                  <div>
+                    <h4 style="margin:0; font-size:15px; color:#f59e0b;">Action Required: ${pendingJobs.length} Job Posting${pendingJobs.length > 1 ? 's' : ''} Awaiting Approval</h4>
+                    <p style="margin:3px 0 0; font-size:13px; color:var(--text-muted, #94a3b8);">Recruiters submitted new job opportunities that need your approval before students can see them.</p>
+                  </div>
+                </div>
+                <button className="btn btn-warning btn-sm" onClick=${() => setActiveTab('job_approvals')} style="white-space:nowrap;">
+                  Review Approvals (${pendingJobs.length}) ➔
+                </button>
+              </div>
+            `}
 
             <div className="metrics-grid">
               <div className="metric-card">
@@ -240,31 +273,80 @@ export function AdminView() {
         `;
 
       case 'job_approvals':
+        const pendingList = (state.jobs || []).filter(j => j.status === 'PENDING');
+        const approvedList = (state.jobs || []).filter(j => j.status !== 'PENDING');
+
         return html`
           <div className="tab-pane animate-fade-in">
-            <div className="page-title-bar">
-              <h2>Approve Job Posts</h2>
+            <div className="page-title-bar" style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <h2>Approve Job Posts</h2>
+                <p className="text-muted" style="margin:4px 0 0; font-size:13px;">Review and authorize recruiter job opportunities before publishing to students</p>
+              </div>
+              <button className="btn btn-outline btn-sm" onClick=${handleRefreshJobs} title="Fetch latest jobs from backend">
+                🔄 Sync & Refresh
+              </button>
             </div>
 
-            <div className="jobs-approval-grid">
-              ${state.jobs.map(job => html`
-                <div key=${job.id} className="card mb-3">
-                  <div className="card-header">
-                    <h3>${job.title} - ${job.companyName}</h3>
-                    <span className=${`status-badge ${job.status.toLowerCase()}`}>${job.status}</span>
-                  </div>
-                  <div className="card-body">
-                    <p>💰 CTC: <strong>${job.ctc}</strong> | Min CGPA: ${job.minCgpa}</p>
-                    <p className="text-muted mt-1">${job.description}</p>
-                    <div className="form-actions mt-3">
-                      ${job.status === 'PENDING' ? html`
-                        <button className="btn btn-success" onClick=${() => handleApproveJob(job.id, 'APPROVED')}>Approve Job Post ✓</button>
-                        <button className="btn btn-danger" onClick=${() => handleApproveJob(job.id, 'REJECTED')}>Reject ✗</button>
-                      ` : html`<span className="text-muted">Approved & Live</span>`}
+            <div className="pending-approvals-wrapper mb-4">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                <h3 style="margin:0; font-size:16px;">⚡ Pending Review (${pendingList.length})</h3>
+                <span className=${`badge ${pendingList.length > 0 ? 'badge-warning' : 'badge-success'}`}>
+                  ${pendingList.length > 0 ? `${pendingList.length} Action Needed` : 'All Caught Up ✓'}
+                </span>
+              </div>
+
+              ${pendingList.length === 0 ? html`
+                <div className="card p-3 mb-4 text-center" style="background: rgba(16, 185, 129, 0.08); border: 1px dashed rgba(16, 185, 129, 0.3);">
+                  <p style="margin:0; font-size:14px; color:#10b981;">✓ All job postings are currently approved or reviewed. No pending approvals.</p>
+                </div>
+              ` : html`
+                <div className="jobs-approval-grid mb-4">
+                  ${pendingList.map(job => html`
+                    <div key=${job.id || job._id} className="card mb-3" style="border-left: 4px solid var(--warning, #f59e0b);">
+                      <div className="card-header">
+                        <div>
+                          <h3 style="margin:0;">${job.title}</h3>
+                          <span style="font-size:13px; color:var(--text-muted, #94a3b8); font-weight:600;">🏢 ${job.companyName}</span>
+                        </div>
+                        <span className="status-badge pending">PENDING REVIEW</span>
+                      </div>
+                      <div className="card-body">
+                        <p>💰 Package CTC: <strong>${job.ctc}</strong> | 🎓 Min CGPA: <strong>${job.minCgpa}</strong> | 📍 Location: <strong>${job.location || 'Hybrid'}</strong></p>
+                        <p className="text-muted mt-1">${job.description}</p>
+                        <div className="form-actions mt-3">
+                          <button className="btn btn-success" onClick=${() => handleApproveJob(job.id, 'APPROVED')}>Approve Job Post ✓</button>
+                          <button className="btn btn-danger" onClick=${() => handleApproveJob(job.id, 'REJECTED')}>Reject ✗</button>
+                        </div>
+                      </div>
+                    </div>
+                  `)}
+                </div>
+              `}
+            </div>
+
+            <div className="all-jobs-wrapper">
+              <h3 style="margin:0 0 12px; font-size:16px;">📋 Live & Archived Job Drives (${approvedList.length})</h3>
+              <div className="jobs-approval-grid">
+                ${approvedList.map(job => html`
+                  <div key=${job.id || job._id} className="card mb-3" style="opacity: 0.95;">
+                    <div className="card-header">
+                      <div>
+                        <h3 style="margin:0;">${job.title}</h3>
+                        <span style="font-size:13px; color:var(--text-muted, #94a3b8);">🏢 ${job.companyName}</span>
+                      </div>
+                      <span className=${`status-badge ${job.status.toLowerCase()}`}>${job.status}</span>
+                    </div>
+                    <div className="card-body">
+                      <p>💰 CTC: <strong>${job.ctc}</strong> | Min CGPA: ${job.minCgpa}</p>
+                      <p className="text-muted mt-1">${job.description}</p>
+                      <div className="form-actions mt-3">
+                        <span className="text-muted">Status: ${job.status} ✓</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              `)}
+                `)}
+              </div>
             </div>
           </div>
         `;

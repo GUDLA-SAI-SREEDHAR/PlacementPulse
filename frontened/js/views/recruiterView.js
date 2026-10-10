@@ -41,6 +41,7 @@ export function RecruiterView() {
       case 'jobs':
         return html`<${JobPostingManager} 
           myJobs=${myJobs} 
+          recruiter=${recruiter}
           onPostJob=${postNewJob} 
         />`;
 
