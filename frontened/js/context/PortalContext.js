@@ -36,13 +36,14 @@ export function PortalProvider({ children }) {
       if (health && (health.status === 'ok' || health.status === 'healthy')) {
         console.log('[PortalContext] Connected to PlacementPulse REST API Backend!');
         
-        const [jobs, applications, notifications, analytics, studentProfile, experiences] = await Promise.all([
+        const [jobs, applications, notifications, analytics, studentProfile, experiences, studentsList] = await Promise.all([
           api.listJobs().catch(() => null),
           api.listApplications().catch(() => null),
           api.getNotifications().catch(() => null),
           api.getAnalyticsDashboard().catch(() => null),
           api.getStudentProfile().catch(() => null),
-          api.listExperiences().catch(() => null)
+          api.listExperiences().catch(() => null),
+          api.listStudents().catch(() => null)
         ]);
 
         setState(prev => ({
@@ -53,7 +54,8 @@ export function PortalProvider({ children }) {
           ...(notifications && Array.isArray(notifications) ? { notifications } : {}),
           ...(analytics ? { analytics } : {}),
           ...(studentProfile ? { studentProfile } : {}),
-          ...(experiences && Array.isArray(experiences) ? { interviewExperiences: experiences } : {})
+          ...(experiences && Array.isArray(experiences) ? { interviewExperiences: experiences } : {}),
+          ...(studentsList && Array.isArray(studentsList) ? { studentsList } : {})
         }));
         return true;
       }
@@ -381,7 +383,10 @@ export function PortalProvider({ children }) {
   };
 
   const postNewJob = async (jobData) => {
-    const recruiterId = jobData.recruiterId || state.recruiterProfile?.id || (state.currentUserRole === 'RECRUITER' ? 501 : 'REC-01');
+    let recruiterId = jobData.recruiterId || state.recruiterProfile?.id || (state.currentUserRole === 'RECRUITER' ? 501 : 'REC-01');
+    if (!isNaN(Number(recruiterId))) {
+      recruiterId = Number(recruiterId);
+    }
     const companyName = jobData.companyName || state.recruiterProfile?.companyName || (state.currentUserRole === 'RECRUITER' ? 'Nexus AI Tech' : 'Campus Partner');
 
     const enrichedJobData = {
@@ -439,7 +444,7 @@ export function PortalProvider({ children }) {
 
     setState(prev => ({
       ...prev,
-      jobs: prev.jobs.map(j => j.id === jobId ? { ...j, status } : j)
+      jobs: (prev.jobs || []).map(j => (j.id === jobId || j._id === jobId) ? { ...j, status } : j)
     }));
   };
 
@@ -452,7 +457,7 @@ export function PortalProvider({ children }) {
 
     setState(prev => ({
       ...prev,
-      studentsList: prev.studentsList.map(st => st.id === studentId ? { ...st, status: isVerified ? 'VERIFIED' : 'PENDING' } : st)
+      studentsList: (prev.studentsList || []).map(st => (st.studentId === studentId || st.id === studentId || st._id === studentId) ? { ...st, status: isVerified ? 'VERIFIED' : 'PENDING', isVerified } : st)
     }));
   };
 

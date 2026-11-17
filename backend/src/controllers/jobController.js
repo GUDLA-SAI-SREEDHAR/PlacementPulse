@@ -75,9 +75,16 @@ exports.postJob = async (req, res, next) => {
     }
     const newId = `JOB-2026-${String(maxNum + 1).padStart(2, '0')}`;
 
+    let resolvedRecruiterId = 501;
+    if (req.body.recruiterId !== undefined && req.body.recruiterId !== null && req.body.recruiterId !== '') {
+      resolvedRecruiterId = !isNaN(Number(req.body.recruiterId)) ? Number(req.body.recruiterId) : req.body.recruiterId;
+    } else if (req.user?.id) {
+      resolvedRecruiterId = !isNaN(Number(req.user.id)) ? Number(req.user.id) : req.user.id;
+    }
+
     const job = await Job.create({
       id: newId,
-      recruiterId: req.user?.id || req.body.recruiterId || 501,
+      recruiterId: resolvedRecruiterId,
       companyName: companyName || req.user?.companyName || 'Campus Partner',
       title,
       location: location || 'Hybrid',

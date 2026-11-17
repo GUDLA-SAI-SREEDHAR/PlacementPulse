@@ -62,7 +62,7 @@ class ApiClient {
     }
   }
 
-  async request(endpoint, options = {}) {
+  async request(endpoint, options = {}, isRetry = false) {
     const url = `${this.baseUrl}${endpoint}`;
     const headers = {
       'Content-Type': 'application/json',
@@ -97,6 +97,12 @@ class ApiClient {
         throw new Error(`Invalid JSON response from ${endpoint}: ${text.slice(0, 100)}`);
       }
     } catch (err) {
+      // If local dev server is unreachable, automatically fall back to cloud backend and retry
+      if (!isRetry && this.baseUrl !== PROD_BACKEND_API_URL) {
+        console.info(`[API Client] Switching from ${this.baseUrl} to Cloud Backend API: ${PROD_BACKEND_API_URL}`);
+        this.baseUrl = PROD_BACKEND_API_URL;
+        return this.request(endpoint, options, true);
+      }
       console.warn(`[API Client] Network or endpoint failure on ${endpoint}:`, err.message);
       throw err;
     }

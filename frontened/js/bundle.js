@@ -1,8 +1,8 @@
-/**
+﻿/**
  * PlacementPulse - Bundled Single File Application (No CORS / Module Restrictions)
- * Optimized for file:// protocol direct double-click loading & Vercel deployment
+ * Optimized for file:// protocol direct double-click loading
  */
-(function () {
+(function() {
   'use strict';
 
   const React = window.React;
@@ -281,7 +281,7 @@ class ApiClient {
     }
   }
 
-  async request(endpoint, options = {}) {
+  async request(endpoint, options = {}, isRetry = false) {
     const url = `${this.baseUrl}${endpoint}`;
     const headers = {
       'Content-Type': 'application/json',
@@ -316,6 +316,12 @@ class ApiClient {
         throw new Error(`Invalid JSON response from ${endpoint}: ${text.slice(0, 100)}`);
       }
     } catch (err) {
+      // If local dev server is unreachable, automatically fall back to cloud backend and retry
+      if (!isRetry && this.baseUrl !== PROD_BACKEND_API_URL) {
+        console.info(`[API Client] Switching from ${this.baseUrl} to Cloud Backend API: ${PROD_BACKEND_API_URL}`);
+        this.baseUrl = PROD_BACKEND_API_URL;
+        return this.request(endpoint, options, true);
+      }
       console.warn(`[API Client] Network or endpoint failure on ${endpoint}:`, err.message);
       throw err;
     }
@@ -844,9 +850,6 @@ function speakQuestion(text) {
 // --- Source: PortalContext.js ---
 
 
-
-
-
 const STORAGE_KEY = 'vpc_portal_state_v1';
 
 const PortalContext = createContext(null);
@@ -879,13 +882,14 @@ function PortalProvider({ children }) {
       if (health && (health.status === 'ok' || health.status === 'healthy')) {
         console.log('[PortalContext] Connected to PlacementPulse REST API Backend!');
         
-        const [jobs, applications, notifications, analytics, studentProfile, experiences] = await Promise.all([
+        const [jobs, applications, notifications, analytics, studentProfile, experiences, studentsList] = await Promise.all([
           api.listJobs().catch(() => null),
           api.listApplications().catch(() => null),
           api.getNotifications().catch(() => null),
           api.getAnalyticsDashboard().catch(() => null),
           api.getStudentProfile().catch(() => null),
-          api.listExperiences().catch(() => null)
+          api.listExperiences().catch(() => null),
+          api.listStudents().catch(() => null)
         ]);
 
         setState(prev => ({
@@ -896,7 +900,8 @@ function PortalProvider({ children }) {
           ...(notifications && Array.isArray(notifications) ? { notifications } : {}),
           ...(analytics ? { analytics } : {}),
           ...(studentProfile ? { studentProfile } : {}),
-          ...(experiences && Array.isArray(experiences) ? { interviewExperiences: experiences } : {})
+          ...(experiences && Array.isArray(experiences) ? { interviewExperiences: experiences } : {}),
+          ...(studentsList && Array.isArray(studentsList) ? { studentsList } : {})
         }));
         return true;
       }
@@ -1224,7 +1229,10 @@ function PortalProvider({ children }) {
   };
 
   const postNewJob = async (jobData) => {
-    const recruiterId = jobData.recruiterId || state.recruiterProfile?.id || (state.currentUserRole === 'RECRUITER' ? 501 : 'REC-01');
+    let recruiterId = jobData.recruiterId || state.recruiterProfile?.id || (state.currentUserRole === 'RECRUITER' ? 501 : 'REC-01');
+    if (!isNaN(Number(recruiterId))) {
+      recruiterId = Number(recruiterId);
+    }
     const companyName = jobData.companyName || state.recruiterProfile?.companyName || (state.currentUserRole === 'RECRUITER' ? 'Nexus AI Tech' : 'Campus Partner');
 
     const enrichedJobData = {
@@ -1282,7 +1290,7 @@ function PortalProvider({ children }) {
 
     setState(prev => ({
       ...prev,
-      jobs: prev.jobs.map(j => j.id === jobId ? { ...j, status } : j)
+      jobs: (prev.jobs || []).map(j => (j.id === jobId || j._id === jobId) ? { ...j, status } : j)
     }));
   };
 
@@ -1295,7 +1303,7 @@ function PortalProvider({ children }) {
 
     setState(prev => ({
       ...prev,
-      studentsList: prev.studentsList.map(st => st.id === studentId ? { ...st, status: isVerified ? 'VERIFIED' : 'PENDING' } : st)
+      studentsList: (prev.studentsList || []).map(st => (st.studentId === studentId || st.id === studentId || st._id === studentId) ? { ...st, status: isVerified ? 'VERIFIED' : 'PENDING', isVerified } : st)
     }));
   };
 
@@ -1386,8 +1394,6 @@ function usePortal() {
 
 
 // --- Source: Header.js ---
-
-
 
 
 
@@ -1508,7 +1514,6 @@ function Header() {
 
 
 
-
 function Footer() {
   return html`
     <footer className="app-footer">
@@ -1532,8 +1537,6 @@ function Footer() {
 
 
 // --- Source: AnalyticsCharts.js ---
-
-
 
 
 
@@ -1570,10 +1573,6 @@ function AnalyticsCharts({ branchStats, salaryDistribution }) {
 
 
 // --- Source: AtsChecker.js ---
-
-
-
-
 
 
 
@@ -1671,8 +1670,6 @@ function AtsChecker({ isHeatmapOnly = false }) {
 
 
 
-
-
 function InterviewExperiences() {
   const { state, addInterviewExperience } = usePortal();
   const experiences = state.interviewExperiences || [];
@@ -1734,8 +1731,6 @@ function InterviewExperiences() {
 
 
 // --- Source: JobDrives.js ---
-
-
 
 
 
@@ -1901,8 +1896,6 @@ function JobDrives({ isApplicationsOnly = false, isRecommendationsOnly = false }
 
 
 
-
-
 function MockInterview() {
   const domains = MOCK_INTERVIEW_DOMAINS;
   const [activeQuestion, setActiveQuestion] = useState(null);
@@ -2013,8 +2006,6 @@ function MockInterview() {
 
 
 
-
-
 function SkillGapAnalyzer() {
   const { state } = usePortal();
   const student = state.studentProfile || {};
@@ -2067,7 +2058,6 @@ function SkillGapAnalyzer() {
 
 
 // --- Source: RecruiterDashboard.js ---
-
 
 
 
@@ -2125,7 +2115,6 @@ function RecruiterDashboard({ recruiter = {}, myJobs = [], myApps = [], shortlis
 
 
 
-
 function CompanyProfile({ recruiter = {} }) {
   return html`
     <div className="tab-pane animate-fade-in">
@@ -2163,7 +2152,6 @@ function CompanyProfile({ recruiter = {} }) {
 
 
 // --- Source: JobPostingManager.js ---
-
 
 
 
@@ -2320,7 +2308,6 @@ function JobPostingManager({ myJobs = [], recruiter = null, onPostJob }) {
 
 
 
-
 function StudentApplicationsTable({ myApps = [] }) {
   return html`
     <div className="tab-pane animate-fade-in">
@@ -2373,7 +2360,6 @@ function StudentApplicationsTable({ myApps = [] }) {
 
 
 // --- Source: CandidatePipeline.js ---
-
 
 
 
@@ -2444,7 +2430,6 @@ function CandidatePipeline({ myApps = [], onUpdateStatus }) {
 
 
 // --- Source: InterviewScheduler.js ---
-
 
 
 
@@ -2547,8 +2532,6 @@ function InterviewScheduler({ myApps = [], onUpdateStatus }) {
 
 
 
-
-
 function CandidateCommunication() {
   const { broadcastNotification, state } = usePortal();
   const [msgSubject, setMsgSubject] = useState('');
@@ -2612,8 +2595,6 @@ function CandidateCommunication() {
 
 
 // --- Source: loginView.js ---
-
-
 
 
 
@@ -2869,13 +2850,6 @@ function LoginView() {
 
 
 // --- Source: studentView.js ---
-
-
-
-
-
-
-
 
 
 
@@ -3335,15 +3309,6 @@ function StudentView() {
 
 
 
-
-
-
-
-
-
-
-
-
 function RecruiterView() {
   const { state, postNewJob, updateApplicationStatus } = usePortal();
   const recruiter = state.recruiterProfile || {
@@ -3447,9 +3412,6 @@ function RecruiterView() {
 
 
 // --- Source: adminView.js ---
-
-
-
 
 
 
@@ -3933,15 +3895,6 @@ function AdminView() {
 
 
 // --- Source: app.js ---
-
-
-
-
-
-
-
-
-
 
 
 
